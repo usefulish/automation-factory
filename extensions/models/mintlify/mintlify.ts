@@ -161,7 +161,7 @@ export const model = {
 
   // Runs after every method, including failed ones, so a failing validation
   // gate still renders its findings.
-  reports: ["@usefulish/mintlify-docs"],
+  reports: ["@usefulish/mintlify-summary"],
 
   resources: {
     repoProfile: {

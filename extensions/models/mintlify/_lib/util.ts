@@ -138,7 +138,6 @@ export async function runCommand(
     clearEnv?: boolean;
     timeoutMs?: number;
     signal?: AbortSignal;
-    stdin?: string;
   } = {},
 ): Promise<CommandResult> {
   const controller = new AbortController();
@@ -160,22 +159,13 @@ export async function runCommand(
       cwd: opts.cwd,
       env: opts.env,
       clearEnv: opts.clearEnv ?? false,
-      stdin: opts.stdin === undefined ? "null" : "piped",
+      stdin: "null",
       stdout: "piped",
       stderr: "piped",
       signal: controller.signal,
     });
 
-    if (opts.stdin === undefined) {
-      const output = await command.output();
-      return decodeOutput(output, timedOut);
-    }
-
-    const child = command.spawn();
-    const writer = child.stdin.getWriter();
-    await writer.write(new TextEncoder().encode(opts.stdin));
-    await writer.close();
-    const output = await child.output();
+    const output = await command.output();
     return decodeOutput(output, timedOut);
   } catch (error) {
     if (timedOut) {

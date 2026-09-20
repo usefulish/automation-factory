@@ -1,5 +1,5 @@
 id: 07e169be-ef6e-405a-b62a-8714788d38c5
-name: mintlify-docs
+name: "@usefulish/mintlify-docs"
 description: >-
   Generate a validated Mintlify documentation site for a GitHub repository.
   Checks the repository out into a disposable workspace, profiles it, plans a
@@ -31,7 +31,7 @@ inputs:
       description: Branch or tag to document (default branch when empty)
     workspace:
       type: string
-      default: .swamp/documentation-factory/workspaces
+      default: .swamp/mintlify/workspaces
       description: Root directory holding per-repository checkouts
     docsDir:
       type: string

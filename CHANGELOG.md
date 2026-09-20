@@ -50,7 +50,7 @@ All notable changes to this repository are documented here.
   without clearing the workspace first. Refuses to reset a path holding a
   checkout of a different repository.
 
-- **`@usefulish/mintlify-docs` report** — renders validation findings, authoring
+- **`@usefulish/mintlify-summary` report** — renders validation findings, authoring
   cost and duration, and the generated navigation. Attached to the model type by
   default, so it runs even when a method fails and a failing validation gate
   still shows its findings.

@@ -70,7 +70,7 @@ interface PlannedGroup {
 
 /** Documentation factory report — validation findings and authoring results. */
 export const report = {
-  name: "@usefulish/mintlify-docs",
+  name: "@usefulish/mintlify-summary",
   description:
     "Summarise a documentation factory run — validation findings, authoring cost, and navigation coverage",
   scope: "method",
@@ -99,26 +99,31 @@ export const report = {
     };
 
     const artefacts = await readArtefacts(context);
+    let rendered = 0;
 
     if (artefacts.validation !== null) {
+      rendered += 1;
       const v = artefacts.validation;
       json.validation = v;
       sections.push(renderValidation(v));
     }
 
     if (artefacts.authorRun !== null) {
+      rendered += 1;
       const a = artefacts.authorRun;
       json.authorRun = a;
       sections.push(renderAuthorRun(a));
     }
 
     if (artefacts.docsConfig !== null) {
+      rendered += 1;
       const c = artefacts.docsConfig;
       json.docsConfig = c;
       sections.push(renderConfig(c));
     }
 
     if (artefacts.docsPlan !== null) {
+      rendered += 1;
       const p = artefacts.docsPlan;
       json.docsPlan = {
         pageCount: num(p, "pageCount"),
@@ -128,6 +133,7 @@ export const report = {
     }
 
     if (artefacts.repoProfile !== null) {
+      rendered += 1;
       const r = artefacts.repoProfile;
       json.repoProfile = {
         repo: str(r, "repo") || str(r, "name"),
@@ -138,7 +144,7 @@ export const report = {
       sections.push(renderProfile(r));
     }
 
-    if (sections.length === 4) {
+    if (rendered === 0) {
       sections.push(
         "_No documentation artefacts were produced by this execution._",
       );

@@ -18,6 +18,16 @@ models:
 reports:
   - mintlify_docs.ts
 
+workflows:
+  # Ships the end-to-end pipeline so `extension pull` gives a runnable
+  # automation, not just the pieces to assemble one.
+  - workflow-mintlify-docs.yaml
+
+# git_checkout.ts extends the `@swamp/git` model type. Without the git
+# extension installed, registration of that method fails.
+dependencies:
+  - "@swamp/git"
+
 additionalFiles:
   - README.md
   - LICENSE.txt
@@ -25,6 +35,13 @@ additionalFiles:
   # prefers the live schema and caches it; this copy keeps validation working
   # with no network rather than silently skipping schema conformance.
   - docs-schema.json
+
+labels:
+  - documentation
+  - mintlify
+  - docs
+  - mdx
+  - agent
 
 # No platform-specific code — the only host requirement is git and a coding
 # agent CLI on PATH.

@@ -20,8 +20,8 @@ swamp extension pull @usefulish/mintlify
 ```
 
 Requires `git` and a supported coding-agent CLI (Claude Code by default, or
-Codex) installed and signed in on the host. No API key is needed when the CLI
-is already authenticated.
+Codex) installed and signed in on the host. No API key is needed when the CLI is
+already authenticated.
 
 ## Model type: `@usefulish/mintlify`
 
@@ -69,18 +69,18 @@ serve runs from different providers without persisting provider-specific state.
 
 ## Provider boundary and sandboxing
 
-`author` owns the common prompt, file-change detection, result resource, and
-run log. A provider adapter owns only the executable arguments and output
-parsing:
+`author` owns the common prompt, file-change detection, result resource, and run
+log. A provider adapter owns only the executable arguments and output parsing:
 
-- **Claude** keeps the original restricted contract: `--restricted`, an
-  explicit `Read Glob Grep Write Edit TodoWrite` allowlist, `--add-dir
-  <checkout>`, and `--permission-prompts none`. Permission bypass is never
-  used.
-- **Codex** runs through `codex exec --sandbox workspace-write --ephemeral
-  --json`. Its working directory is the disposable repository checkout, and
-  the JSONL event stream is normalized into the same author-run resource used
-  for Claude.
+- **Claude** keeps the original restricted contract: `--restricted`, an explicit
+  `Read Glob Grep Write Edit TodoWrite` allowlist, `--add-dir
+  <checkout>`, and
+  `--permission-prompts none`. Permission bypass is never used.
+- **Codex** runs through
+  `codex exec --sandbox workspace-write --ephemeral
+  --json`. Its working
+  directory is the disposable repository checkout, and the JSONL event stream is
+  normalized into the same author-run resource used for Claude.
 
 The prompt forbids writing `docs.json`, touching source outside the docs
 directory, inventing behaviour, and emitting placeholder text. Validation then
@@ -126,7 +126,7 @@ swamp model method run repo ensure_checkout \
 It refuses to touch a path that holds a checkout of a different repository,
 because `reset` discards local changes.
 
-## Report: `@usefulish/mintlify-docs`
+## Report: `@usefulish/mintlify-summary`
 
 A method-scope report attached to the model type by default. It renders the
 validation findings, the authoring run (cost, duration, files written), and the
@@ -134,5 +134,5 @@ generated navigation. Reports run even when a method fails, so a failed
 validation gate still shows its findings:
 
 ```sh
-swamp report get @usefulish/mintlify-docs --model docs-factory --markdown
+swamp report get @usefulish/mintlify-summary --model docs-factory --markdown
 ```

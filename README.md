@@ -5,7 +5,7 @@ GitHub repository and leaves behind a validated Mintlify documentation site,
 ready to commit.
 
 ```sh
-swamp workflow run mintlify-docs --input repo=owner/name
+swamp workflow run @usefulish/mintlify-docs --input repo=owner/name
 ```
 
 That one command checks the repository out into a disposable workspace, profiles
@@ -41,7 +41,7 @@ nothing is committed or pushed for you.
 | `workflows/workflow-mintlify-docs.yaml` | The workflow: three jobs, six steps.                 |
 | `@usefulish/mintlify`                   | Model type — `inspect`, `plan`, `author`, `ensureConfig`, `validate`. |
 | `@swamp/git` + `ensure_checkout`        | Official git model, extended with an idempotent checkout. |
-| `@usefulish/mintlify-docs`              | Report rendering findings, cost, and navigation.     |
+| `@usefulish/mintlify-summary`              | Report rendering findings, cost, and navigation.     |
 
 The extension lives in `extensions/models/mintlify/` and has its own
 [README](extensions/models/mintlify/README.md) covering methods, global
@@ -61,7 +61,7 @@ succeed.
 | `host`         | `github.com`                                | For GitHub Enterprise or another forge.         |
 | `sourceUrl`    | derived from `host` and `repo`              | Optional clone URL or local repository path.    |
 | `ref`          | default branch                              | Branch or tag to document.                      |
-| `workspace`    | `.swamp/documentation-factory/workspaces`   | Root holding per-repository checkouts.          |
+| `workspace`    | `.swamp/mintlify/workspaces`   | Root holding per-repository checkouts.          |
 | `docsDir`      | `docs`                                      | Docs directory in the target repo.              |
 | `docsBranch`   | `docs/mintlify`                             | Branch the generated docs land on.              |
 | `theme`        | `mint`                                      | Mintlify theme.                                 |
@@ -77,22 +77,22 @@ succeed.
 
 ```sh
 # Document a tag, with docs at the repository root and extra guidance
-swamp workflow run mintlify-docs \
+swamp workflow run @usefulish/mintlify-docs \
   --input repo=owner/name \
   --input ref=v2.1.0 \
   --input docsDir=. \
   --input instructions="Lead with the migration guide; assume a Kubernetes audience."
 
 # Document an existing local checkout without modifying it
-swamp workflow run mintlify-docs \
+swamp workflow run @usefulish/mintlify-docs \
   --input repo=owner/name \
   --input sourceUrl=/absolute/path/to/repository
 
 # Relax the gate so orphan pages and missing descriptions are warnings
-swamp workflow run mintlify-docs --input repo=owner/name --input 'strict:json=false'
+swamp workflow run @usefulish/mintlify-docs --input repo=owner/name --input 'strict:json=false'
 
 # Use Codex for the fuzzy authoring node; all other nodes are unchanged
-swamp workflow run mintlify-docs \
+swamp workflow run @usefulish/mintlify-docs \
   --input repo=owner/name \
   --input agentProvider=codex
 ```
@@ -101,7 +101,7 @@ swamp workflow run mintlify-docs \
 
 ```sh
 swamp extension install     # restores @swamp/git from extensions/models/upstream_extensions.json
-swamp workflow run mintlify-docs --input repo=owner/name
+swamp workflow run @usefulish/mintlify-docs --input repo=owner/name
 ```
 
 The `@usefulish/mintlify` extension lives in this repository, so it is
@@ -155,6 +155,6 @@ swamp extension quality extensions/models/mintlify/manifest.yaml --json
 Inspect a failed run through its report rather than guessing:
 
 ```sh
-swamp report get @usefulish/mintlify-docs --model mintlify-docs --markdown
+swamp report get @usefulish/mintlify-summary --model mintlify-docs --markdown
 swamp report get @swamp/workflow-summary --workflow mintlify-docs --json
 ```

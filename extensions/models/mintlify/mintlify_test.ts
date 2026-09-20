@@ -441,7 +441,7 @@ Deno.test("the authoring prompt never asks the agent to write docs.json", async 
 // These use the vendored copy so the suite stays offline and deterministic.
 
 import { themeBranches } from "./_lib/validate.ts";
-import { validateDocs } from "./_lib/validate.ts";
+import { findPlaceholder, validateDocs } from "./_lib/validate.ts";
 import { ensureDocsConfig, listDocPages } from "./_lib/config.ts";
 
 const VENDORED_SCHEMA = JSON.parse(
@@ -594,6 +594,106 @@ Deno.test("placeholders, stubs, and broken links all fail validation", async () 
     assertEquals(kinds.has("placeholder"), true);
     assertEquals(kinds.has("broken-link"), true);
     assertEquals(kinds.has("missing-asset"), true);
+    assertEquals(result.ok, false);
+  });
+});
+
+Deno.test("findPlaceholder still catches genuine unfinished markers", () => {
+  // The classic annotation forms all count.
+  assertEquals(findPlaceholder("TODO: write this properly later on."), "TODO");
+  assertEquals(
+    findPlaceholder("**FIXME:** the config table is wrong."),
+    "FIXME",
+  );
+  assertEquals(findPlaceholder("Some prose before.\n\n- TODO\n"), "TODO");
+  assertEquals(findPlaceholder("> TBD.\n"), "TBD");
+  assertEquals(findPlaceholder("## XXX\n"), "XXX");
+  // Phrase placeholders count wherever they appear in prose.
+  assertEquals(findPlaceholder("Lorem ipsum dolor sit amet."), "Lorem ipsum");
+  assertEquals(findPlaceholder("This section is coming soon."), "coming soon");
+  assertEquals(findPlaceholder("<!-- fill in the flags -->"), "<!-- fill");
+});
+
+Deno.test("findPlaceholder ignores prose that discusses markers", () => {
+  // The AIrchaeology known-issues case: a page explaining that the source
+  // repository contains no such markers, quoting the tokens in code spans.
+  assertEquals(
+    findPlaceholder(
+      "Nothing in this repository lists open defects, by design.\n\n" +
+        "- There are no `TODO` or `FIXME` markers.\n" +
+        "- Do not add a `TODO` to the source.\n",
+    ),
+    null,
+  );
+  // Plain prose mentions, without code formatting, are discussion too.
+  assertEquals(
+    findPlaceholder(
+      "The repository has no TODO or FIXME markers, so a clean grep proves\n" +
+        "nothing about the defect list. TODO markers are a convention, not a\n" +
+        "guarantee.\n",
+    ),
+    null,
+  );
+  // Marker tokens inside fenced code blocks are quoted, not authored.
+  assertEquals(
+    findPlaceholder(
+      "Example:\n\n```js\n// TODO: implement me\n```\n\nDone.\n",
+    ),
+    null,
+  );
+  // Hyphenated or suffixed uses are ordinary words.
+  assertEquals(findPlaceholder("The roadmap is TODO-ish at best.\n"), null);
+});
+
+Deno.test("a page discussing placeholder conventions passes validation", async () => {
+  await withDocs({
+    "docs/docs.json": validConfig(),
+    "docs/index.mdx": [
+      "---",
+      'title: "Known issues"',
+      'description: "Why nothing is listed here and what a clean grep proves."',
+      "---",
+      "",
+      "Nothing in this repository lists open defects, by design.",
+      "",
+      "- There are no `TODO` or `FIXME` markers.",
+      "- A known-but-unfixed defect has no other repo-side representation.",
+      "",
+      "The consequence: a clean grep and a green test run are evidence about",
+      "the code, not about the defect list.",
+    ].join("\n"),
+  }, async (dir) => {
+    const result = await validateDocs({ ...baseOpts, repoPath: dir });
+    assertEquals(
+      result.issues.some((i) => i.kind === "placeholder"),
+      false,
+    );
+    assertEquals(result.ok, true);
+  });
+});
+
+Deno.test("bare and list-item markers still fail validation", async () => {
+  await withDocs({
+    "docs/docs.json": validConfig(),
+    "docs/index.mdx": [
+      "---",
+      'title: "Overview"',
+      'description: "Real description here for the overview page."',
+      "---",
+      "",
+      "This page has enough real prose in it to clear the empty-page",
+      "threshold, which exists so a stub can never pass validation unnoticed.",
+      "",
+      "- TODO",
+    ].join("\n"),
+  }, async (dir) => {
+    const result = await validateDocs({ ...baseOpts, repoPath: dir });
+    const issue = result.issues.find((i) => i.kind === "placeholder");
+    assertEquals(issue !== undefined, true);
+    assertEquals(
+      issue?.message,
+      'Contains unfinished placeholder text ("TODO").',
+    );
     assertEquals(result.ok, false);
   });
 });

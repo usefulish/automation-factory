@@ -114,7 +114,6 @@ jobs:
             reset: ${{ inputs.reset }}
             branch: ${{ inputs.docsBranch }}
 
-
   - name: document
     description: Profile the repository, plan the pages, write them, and build the config
     dependsOn:
@@ -238,7 +237,7 @@ jobs:
         task:
           type: model_method
           modelType: "@swamp/git"
-          modelName: ${{ "docs-checkout-status-" + inputs.repo.split("/")[0] + "-" + inputs.repo.split("/")[1].split(".").join("-") }}
+          modelName: ${{ "docs-checkout-status-" + inputs.repo.split("/")[0].lowerAscii().split(".").join("-") + "-" + inputs.repo.split("/")[1].lowerAscii().split(".").join("-") }}
           globalArgs:
             repoPath: ${{ inputs.workspace + "/" + inputs.repo.split("/")[0] + "/" + inputs.repo.split("/")[1] }}
           methodName: status

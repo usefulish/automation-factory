@@ -150,6 +150,10 @@ swamp extension quality extensions/models/mintlify/manifest.yaml --json
 # Unit tests (no network, no agent invocation)
 ~/.swamp/deno/deno test --allow-read --allow-write --allow-run --allow-env \
   extensions/models/mintlify/mintlify_test.ts
+
+# Workflow identifier canonicalization (runs `swamp workflow evaluate`)
+~/.swamp/deno/deno test --allow-read --allow-write --allow-run --allow-env \
+  workflows/workflow-mintlify-docs_test.ts
 ```
 
 Inspect a failed run through its report rather than guessing:

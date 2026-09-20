@@ -21,9 +21,29 @@ import {
 import { listDocPages } from "./config.ts";
 import type { IssueSeverity, ValidationIssue } from "./types.ts";
 
-/** Placeholder markers that indicate unfinished authoring. */
-const PLACEHOLDER_PATTERN =
-  /\b(TODO|TBD|FIXME|XXX|Lorem ipsum|PLACEHOLDER|Coming soon|<!--\s*fill)\b/i;
+/**
+ * Marker tokens that indicate unfinished authoring when they are used as
+ * annotations. The same words routinely appear in prose that *discusses*
+ * placeholders — "this repository has no `TODO` markers" — so a bare word
+ * match is not enough; see {@linkcode findPlaceholder}.
+ */
+const MARKER_PATTERN = /\b(?:TODO|TBD|FIXME|XXX)\b/gi;
+
+/**
+ * Phrase placeholders that are unfinished content wherever they appear in
+ * authored prose (code spans and fenced blocks are stripped first).
+ */
+const PHRASE_PLACEHOLDER_PATTERN =
+  /\b(?:Lorem ipsum|PLACEHOLDER|Coming soon)\b/i;
+
+/** An unfinished `<!-- fill ... -->` HTML comment. */
+const FILL_COMMENT_PATTERN = /<!--\s*fill\b/i;
+
+/** Fenced code blocks: their contents are quoted, not authored, text. */
+const FENCED_BLOCK_PATTERN = /(?:```|~~~)[\s\S]*?(?:```|~~~)/g;
+
+/** Inline code spans: they quote tokens literally. */
+const CODE_SPAN_PATTERN = /`[^`\n]+`/g;
 
 /**
  * ajv compiles `pattern` keywords with the `u` flag, but the published Mintlify
@@ -398,13 +418,13 @@ async function checkPages(
       );
     }
 
-    const placeholder = body.match(PLACEHOLDER_PATTERN);
+    const placeholder = findPlaceholder(body);
     if (placeholder !== null) {
       push(
         "error",
         "placeholder",
         rel,
-        `Contains unfinished placeholder text ("${placeholder[0]}").`,
+        `Contains unfinished placeholder text ("${placeholder}").`,
       );
     }
 
@@ -465,6 +485,81 @@ function stripFrontmatter(text: string): string {
   const end = text.indexOf("\n---", 3);
   if (end === -1) return text;
   return text.slice(end + 4);
+}
+
+/**
+ * Strip text that quotes rather than authors: fenced code blocks and inline
+ * code spans.
+ *
+ * Documentation that *mentions* a marker token almost always quotes it in
+ * code formatting — "there are no `TODO` or `FIXME` markers" — while genuine
+ * unfinished placeholders sit in authored prose. Replaced spans collapse to a
+ * space so token boundaries around them are preserved.
+ */
+export function stripQuotedCode(body: string): string {
+  return body
+    .replace(FENCED_BLOCK_PATTERN, " ")
+    .replace(CODE_SPAN_PATTERN, " ");
+}
+
+/**
+ * Whether the marker occurrence at `index` is used as an annotation rather
+ * than discussed as a word.
+ *
+ * An annotation is the classic unfinished-marker shape: the token followed
+ * by a colon (optionally behind markdown emphasis), or a line whose entire
+ * content is the token — "- TODO", "> TBD." — possibly behind list, quote, or
+ * heading markers. A token inside a sentence ("there are no TODO markers") is
+ * prose discussing markers and does not count.
+ */
+function isMarkerAnnotation(
+  text: string,
+  index: number,
+  length: number,
+): boolean {
+  // "TODO: write this properly", "**FIXME:** broken".
+  const after = text.slice(index + length, index + length + 5);
+  if (/^[\s*_~]*:/.test(after)) return true;
+
+  // "- TODO", "> TBD.", "## XXX" — the token is the whole line's content.
+  const lineStart = text.lastIndexOf("\n", index - 1) + 1;
+  let lineEnd = text.indexOf("\n", index);
+  if (lineEnd === -1) lineEnd = text.length;
+  const line = text.slice(lineStart, lineEnd)
+    .replace(/^\s*(?:[#>\-*+]\s*)*/, "");
+  return /^(?:TODO|TBD|FIXME|XXX)\b[\s.,;!?\-]*$/i.test(line);
+}
+
+/**
+ * Find an unfinished placeholder in a page body, if any.
+ *
+ * Marker tokens (`TODO`, `TBD`, `FIXME`, `XXX`) count only when used as an
+ * annotation — followed by a colon, or alone on their line — because the same
+ * words are legitimate prose when a page discusses placeholder conventions
+ * (the AIrchaeology known-issues page is the canonical case). Phrase
+ * placeholders (`Lorem ipsum`, `PLACEHOLDER`, `Coming soon`) and unfinished
+ * `<!-- fill` comments count wherever they appear in authored prose. Anything
+ * inside a code span or fenced block is quoted text and never counts.
+ *
+ * @param body Page body with frontmatter already stripped.
+ * @returns The offending text, or null when the page has no placeholder.
+ */
+export function findPlaceholder(body: string): string | null {
+  const prose = stripQuotedCode(body);
+
+  const phrase = prose.match(PHRASE_PLACEHOLDER_PATTERN);
+  if (phrase !== null) return phrase[0];
+
+  const fill = prose.match(FILL_COMMENT_PATTERN);
+  if (fill !== null) return fill[0];
+
+  for (const match of prose.matchAll(MARKER_PATTERN)) {
+    if (match.index === undefined) continue;
+    if (isMarkerAnnotation(prose, match.index, match[0].length)) {
+      return match[0];
+    }
+  }
+  return null;
 }
 
 /** Markdown links that point inside the docs set (not http, mailto, or #). */

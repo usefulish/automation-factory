@@ -59,12 +59,15 @@ succeed.
 | -------------- | ------------------------------------------- | ----------------------------------------------- |
 | `repo`         | *(required)*                                | `owner/name`.                                   |
 | `host`         | `github.com`                                | For GitHub Enterprise or another forge.         |
+| `sourceUrl`    | derived from `host` and `repo`              | Optional clone URL or local repository path.    |
 | `ref`          | default branch                              | Branch or tag to document.                      |
 | `workspace`    | `.swamp/documentation-factory/workspaces`   | Root holding per-repository checkouts.          |
 | `docsDir`      | `docs`                                      | Docs directory in the target repo.              |
 | `docsBranch`   | `docs/mintlify`                             | Branch the generated docs land on.              |
 | `theme`        | `mint`                                      | Mintlify theme.                                 |
 | `siteName`     | repository name                             | Documentation site name.                        |
+| `agentProvider`| `claude`                                    | Authoring provider: `claude` or `codex`.        |
+| `agentCliPath` | provider executable                         | Optional path/name override for the provider CLI. |
 | `agentModel`   | CLI default                                 | Model for the authoring agent.                  |
 | `instructions` | none                                        | Extra authoring guidance.                       |
 | `reset`        | `true`                                      | Reset the checkout to the remote ref before documenting. |
@@ -80,8 +83,18 @@ swamp workflow run mintlify-docs \
   --input docsDir=. \
   --input instructions="Lead with the migration guide; assume a Kubernetes audience."
 
+# Document an existing local checkout without modifying it
+swamp workflow run mintlify-docs \
+  --input repo=owner/name \
+  --input sourceUrl=/absolute/path/to/repository
+
 # Relax the gate so orphan pages and missing descriptions are warnings
 swamp workflow run mintlify-docs --input repo=owner/name --input 'strict:json=false'
+
+# Use Codex for the fuzzy authoring node; all other nodes are unchanged
+swamp workflow run mintlify-docs \
+  --input repo=owner/name \
+  --input agentProvider=codex
 ```
 
 ## From a fresh clone
@@ -97,9 +110,10 @@ discovered automatically — no `swamp extension source add` needed.
 ## Requirements
 
 - `git` on `PATH`.
-- A coding-agent CLI (Claude Code by default) installed and signed in. No API
-  key is required when the CLI already holds a session. Set `agentCliPath` to
-  point elsewhere.
+- A supported coding-agent CLI (Claude Code by default, or Codex) installed and
+  signed in. No API key is required when the CLI already holds a session. Set
+  the `agentProvider` workflow input to select it, and `agentCliPath` only when
+  the executable needs an explicit override.
 - Network access on the first run so the published Mintlify schema can be
   fetched; a vendored copy is the offline fallback.
 
@@ -133,7 +147,7 @@ in [CLAUDE.md](CLAUDE.md).
 swamp extension fmt extensions/models/mintlify/manifest.yaml
 swamp extension quality extensions/models/mintlify/manifest.yaml --json
 
-# Unit tests (33 tests; no network, no agent invocation)
+# Unit tests (no network, no agent invocation)
 ~/.swamp/deno/deno test --allow-read --allow-write --allow-run --allow-env \
   extensions/models/mintlify/mintlify_test.ts
 ```

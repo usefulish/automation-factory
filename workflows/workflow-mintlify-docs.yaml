@@ -19,6 +19,12 @@ inputs:
       type: string
       default: github.com
       description: Git host, for GitHub Enterprise or another forge
+    sourceUrl:
+      type: string
+      default: ""
+      description: >-
+        Optional clone source URL or local repository path. When empty, the
+        workflow derives an HTTPS URL from host and repo.
     ref:
       type: string
       default: ""
@@ -48,6 +54,15 @@ inputs:
       type: string
       default: ""
       description: Model for the authoring agent (CLI default when empty)
+    agentProvider:
+      type: string
+      default: claude
+      enum: [claude, codex]
+      description: Coding-agent provider used for the fuzzy authoring step
+    agentCliPath:
+      type: string
+      default: ""
+      description: Optional provider CLI executable override
     instructions:
       type: string
       default: ""
@@ -92,7 +107,7 @@ jobs:
           globalArgs:
             repoPath: "."
           inputs:
-            url: ${{ "https://" + inputs.host + "/" + inputs.repo + ".git" }}
+            url: '${{ inputs.sourceUrl != "" ? inputs.sourceUrl : "https://" + inputs.host + "/" + inputs.repo + ".git" }}'
             path: ${{ inputs.workspace + "/" + inputs.repo.split("/")[0] + "/" + inputs.repo.split("/")[1] }}
             ref: ${{ inputs.ref }}
             depth: ${{ inputs.depth }}
@@ -160,6 +175,8 @@ jobs:
             docsDir: ${{ inputs.docsDir }}
           inputs:
             repoPath: ${{ inputs.workspace + "/" + inputs.repo.split("/")[0] + "/" + inputs.repo.split("/")[1] }}
+            provider: ${{ inputs.agentProvider }}
+            cliPath: ${{ inputs.agentCliPath }}
             instructions: ${{ inputs.instructions }}
             model: ${{ inputs.agentModel }}
             overwrite: ${{ inputs.overwrite }}
@@ -221,7 +238,7 @@ jobs:
         task:
           type: model_method
           modelType: "@swamp/git"
-          modelName: docs-checkout-status
+          modelName: ${{ "docs-checkout-status-" + inputs.repo.split("/")[0] + "-" + inputs.repo.split("/")[1].split(".").join("-") }}
           globalArgs:
             repoPath: ${{ inputs.workspace + "/" + inputs.repo.split("/")[0] + "/" + inputs.repo.split("/")[1] }}
           methodName: status

@@ -19,6 +19,9 @@ export const MINTLIFY_THEMES = [
   "sequoia",
 ] as const;
 
+/** Coding-agent CLIs with a supported authoring adapter. */
+export const AUTHOR_PROVIDERS = ["claude", "codex"] as const;
+
 const HEX_COLOR = /^#([a-fA-F0-9]{6}|[a-fA-F0-9]{3})$/;
 
 /** Global arguments — stable across repositories, all optional with defaults. */
@@ -38,8 +41,11 @@ export const GlobalArgsSchema = z.object({
   darkColor: z.string().regex(HEX_COLOR).default("#0D9373").describe(
     "Colour used as primary in light mode (hex)",
   ),
-  agentCliPath: z.string().min(1).default("claude").describe(
-    "Path to the coding-agent CLI used for authoring",
+  agentProvider: z.enum(AUTHOR_PROVIDERS).default("claude").describe(
+    "Coding-agent provider used for authoring",
+  ),
+  agentCliPath: z.string().default("").describe(
+    "Optional authoring CLI executable override. Empty uses the provider default.",
   ),
   agentModel: z.string().min(1).optional().describe(
     "Model the authoring agent should use (defaults to the CLI's own default)",
@@ -82,6 +88,12 @@ export const PlanArgsSchema = z.object({
 /** Arguments for `author`. */
 export const AuthorArgsSchema = z.object({
   repoPath: RepoPathArg,
+  provider: z.enum(AUTHOR_PROVIDERS).optional().describe(
+    "Override the configured authoring provider for this run",
+  ),
+  cliPath: z.string().optional().describe(
+    "Override the configured authoring CLI executable for this run. Empty string means unset.",
+  ),
   instructions: z.string().optional().describe(
     "Extra authoring guidance appended to the generated brief. Empty string means unset.",
   ),

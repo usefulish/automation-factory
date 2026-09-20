@@ -17,7 +17,12 @@ import {
   parseFrontmatter,
   resolveLink,
 } from "./_lib/validate.ts";
-import { parseAgentJson } from "./_lib/author.ts";
+import {
+  buildAuthorInvocation,
+  parseAgentJson,
+  parseCodexAgentJsonl,
+  resolveAuthorCliPath,
+} from "./_lib/author.ts";
 import { slugify, stripDocExtension } from "./_lib/util.ts";
 import type { DocsPlan, RepoProfile } from "./_lib/types.ts";
 
@@ -352,6 +357,73 @@ Deno.test("parseAgentJson extracts metadata and tolerates non-JSON output", () =
   assertEquals(empty.permissionDenials, 0);
 });
 
+Deno.test("author provider defaults and explicit CLI overrides are resolved", () => {
+  assertEquals(resolveAuthorCliPath("claude", null), "claude");
+  assertEquals(resolveAuthorCliPath("codex", ""), "codex");
+  assertEquals(
+    resolveAuthorCliPath("codex", "/opt/homebrew/bin/codex"),
+    "/opt/homebrew/bin/codex",
+  );
+});
+
+Deno.test("Claude author invocation preserves the existing restricted contract", () => {
+  const invocation = buildAuthorInvocation({
+    provider: "claude",
+    cliPath: "/usr/local/bin/claude",
+    model: "claude-opus-5",
+    prompt: "Write docs",
+    repoPath: "/tmp/widget",
+  });
+
+  assertEquals(invocation.cliPath, "/usr/local/bin/claude");
+  assertEquals(invocation.args.slice(0, 4), [
+    "--print",
+    "Write docs",
+    "--output-format",
+    "json",
+  ]);
+  assertEquals(invocation.args.includes("--restricted"), true);
+  assertEquals(invocation.args.includes("--allowedTools"), true);
+  assertEquals(invocation.args.slice(-2), ["--model", "claude-opus-5"]);
+});
+
+Deno.test("Codex author invocation uses non-interactive workspace-write JSONL", () => {
+  const invocation = buildAuthorInvocation({
+    provider: "codex",
+    cliPath: null,
+    model: "test-model",
+    prompt: "Write docs",
+    repoPath: "/tmp/widget",
+  });
+
+  assertEquals(invocation.cliPath, "codex");
+  assertEquals(invocation.args, [
+    "exec",
+    "--sandbox",
+    "workspace-write",
+    "--ephemeral",
+    "--json",
+    "--model",
+    "test-model",
+    "Write docs",
+  ]);
+});
+
+Deno.test("parseCodexAgentJsonl extracts thread, final message, and turns", () => {
+  const meta = parseCodexAgentJsonl([
+    '{"type":"thread.started","thread_id":"thread-1"}',
+    '{"type":"turn.started"}',
+    '{"type":"item.completed","item":{"type":"agent_message","text":"Wrote five pages."}}',
+    '{"type":"turn.completed","usage":{"input_tokens":100,"output_tokens":20}}',
+    "not-json",
+  ].join("\n"));
+
+  assertEquals(meta.sessionId, "thread-1");
+  assertEquals(meta.summary, "Wrote five pages.");
+  assertEquals(meta.numTurns, 1);
+  assertEquals(meta.costUsd, null);
+});
+
 Deno.test("the authoring prompt never asks the agent to write docs.json", async () => {
   const { buildAuthorPrompt } = await import("./_lib/prompt.ts");
   const prompt = buildAuthorPrompt({
@@ -661,7 +733,11 @@ Deno.test("a link to the docs root and to a directory index both resolve", async
   await withDocs({
     "docs/docs.json": (() => {
       const config = JSON.parse(validConfig());
-      config.navigation.groups[0].pages = ["index", "quickstart", "guides/index"];
+      config.navigation.groups[0].pages = [
+        "index",
+        "quickstart",
+        "guides/index",
+      ];
       return JSON.stringify(config);
     })(),
     "docs/index.mdx": goodPage("Overview"),

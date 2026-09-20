@@ -6,6 +6,23 @@ All notable changes to this repository are documented here.
 
 ### Added
 
+- **Provider-neutral documentation authoring** — the fuzzy `author` method now
+  supports both Claude Code and Codex behind provider adapters. Claude keeps
+  its existing restricted CLI flags; Codex uses non-interactive
+  `codex exec --sandbox workspace-write --ephemeral --json` and its JSONL
+  output is normalized into the same author-run resource. The workflow exposes
+  `agentProvider` and `agentCliPath` per run while the deterministic inspect,
+  plan, configuration, and validation nodes remain provider-independent.
+
+- **Per-target checkout status models** — the final workflow status step now
+  scopes its model name to `owner/repository`, preventing a prior target's
+  persisted `repoPath` from being reused by a later run.
+
+- **Local repository sources for `mintlify-docs`** — pass
+  `--input sourceUrl=/absolute/path/to/repository` to clone from an existing
+  local checkout into the disposable workspace. The existing `host` + `repo`
+  HTTPS source remains the default.
+
 - **`mintlify-docs` workflow** — generates a validated Mintlify documentation
   site for any GitHub repository from a single `--input repo=owner/name`. Three
   jobs: check the repository out into a disposable workspace, document it, then
@@ -18,9 +35,9 @@ All notable changes to this repository are documented here.
     manifests, executable entrypoints, markdown outline, CI, existing docs.
   - `plan` — derives the page set and a per-page authoring brief from the
     profile. Same profile in, same plan out.
-  - `author` — writes the pages with a locally installed coding-agent CLI,
-    scoped to the checkout with `--restricted`, an explicit tool allowlist, and
-    no permission-bypass flag.
+  - `author` — writes the pages with a locally installed coding-agent CLI.
+    Provider-specific invocation and output parsing stay behind an adapter,
+    while the common prompt, results, and downstream nodes remain shared.
   - `ensureConfig` — creates or updates `docs.json`, regenerating navigation
     from the pages actually on disk and preserving operator customisations.
   - `validate` — the quality gate: Mintlify's published JSON Schema plus

@@ -1,11 +1,8 @@
 /**
  * Invokes a local coding-agent CLI to author the documentation pages.
  *
- * The agent runs with the narrowest permissions that still let it write docs:
- * `--restricted` removes the command-execution tools entirely, the tool
- * allowlist is explicit, `--add-dir` scopes filesystem access to the checkout,
- * and anything that would otherwise prompt is denied. The permission-bypass
- * flag is never used.
+ * Provider-specific command lines and output formats are isolated here so the
+ * surrounding inspect/plan/configure/validate pipeline stays provider-neutral.
  *
  * @module
  */
@@ -36,6 +33,17 @@ export interface AuthorResult {
   readonly log: string;
 }
 
+/** Authoring providers with a supported non-interactive CLI contract. */
+export type AuthorProvider = "claude" | "codex";
+
+/** A provider-specific executable invocation. */
+export interface AuthorInvocation {
+  readonly cliPath: string;
+  readonly args: string[];
+  /** Human-readable command with the (potentially large) prompt redacted. */
+  readonly display: string;
+}
+
 /** Tools the agent is allowed to use. Deliberately excludes command execution. */
 export const AUTHOR_ALLOWED_TOOLS = [
   "Read",
@@ -51,7 +59,9 @@ export interface AuthorOptions {
   readonly repoPath: string;
   readonly docsDir: string;
   readonly prompt: string;
-  readonly cliPath: string;
+  readonly provider: AuthorProvider;
+  /** Executable override. Empty/null uses the provider default. */
+  readonly cliPath: string | null;
   readonly model: string | null;
   readonly timeoutMs: number;
   readonly signal?: AbortSignal;
@@ -72,6 +82,81 @@ export async function runAuthoringAgent(
 
   const before = await snapshotDocs(docsRoot);
   const startedAt = Date.now();
+  const invocation = buildAuthorInvocation(opts);
+
+  const result = await runCommand(invocation.cliPath, invocation.args, {
+    cwd: opts.repoPath,
+    timeoutMs: opts.timeoutMs,
+    signal: opts.signal,
+  });
+
+  const durationMs = Date.now() - startedAt;
+  const after = await snapshotDocs(docsRoot);
+  const meta = parseAgentOutput(opts.provider, result.stdout);
+
+  return {
+    exitCode: result.code,
+    timedOut: result.timedOut,
+    durationMs,
+    provider: opts.provider,
+    model: meta.model ?? opts.model,
+    sessionId: meta.sessionId,
+    costUsd: meta.costUsd,
+    numTurns: meta.numTurns,
+    summary: meta.summary ?? truncate(result.stdout.trim(), 2000),
+    changedFiles: diffSnapshots(before, after, opts.docsDir),
+    permissionDenials: meta.permissionDenials,
+    log: [
+      `$ ${invocation.display}`,
+      `# exit=${result.code} timedOut=${result.timedOut} durationMs=${durationMs}`,
+      "",
+      "--- stdout ---",
+      result.stdout,
+      "--- stderr ---",
+      result.stderr,
+    ].join("\n"),
+  };
+}
+
+/** Resolve a provider's executable, preserving explicit path overrides. */
+export function resolveAuthorCliPath(
+  provider: AuthorProvider,
+  cliPath: string | null,
+): string {
+  const override = cliPath?.trim();
+  return override === undefined || override === "" ? provider : override;
+}
+
+/** Build the provider-specific command while keeping orchestration generic. */
+export function buildAuthorInvocation(
+  opts: Pick<
+    AuthorOptions,
+    "provider" | "cliPath" | "model" | "prompt" | "repoPath"
+  >,
+): AuthorInvocation {
+  const cliPath = resolveAuthorCliPath(opts.provider, opts.cliPath);
+
+  if (opts.provider === "codex") {
+    const args = [
+      "exec",
+      "--sandbox",
+      "workspace-write",
+      "--ephemeral",
+      "--json",
+    ];
+    if (opts.model !== null) args.push("--model", opts.model);
+    args.push(opts.prompt);
+    return {
+      cliPath,
+      args,
+      display: [
+        cliPath,
+        "exec --sandbox workspace-write --ephemeral --json",
+        opts.model === null ? "" : `--model ${opts.model}`,
+        "<prompt>",
+      ].filter((part) => part !== "").join(" "),
+    };
+  }
 
   const args = [
     "--print",
@@ -91,45 +176,21 @@ export async function runAuthoringAgent(
     ...AUTHOR_ALLOWED_TOOLS,
   ];
   if (opts.model !== null) args.push("--model", opts.model);
-
-  const result = await runCommand(opts.cliPath, args, {
-    cwd: opts.repoPath,
-    timeoutMs: opts.timeoutMs,
-    signal: opts.signal,
-  });
-
-  const durationMs = Date.now() - startedAt;
-  const after = await snapshotDocs(docsRoot);
-  const meta = parseAgentJson(result.stdout);
-
   return {
-    exitCode: result.code,
-    timedOut: result.timedOut,
-    durationMs,
-    provider: "claude",
-    model: meta.model ?? opts.model,
-    sessionId: meta.sessionId,
-    costUsd: meta.costUsd,
-    numTurns: meta.numTurns,
-    summary: meta.summary ?? truncate(result.stdout.trim(), 2000),
-    changedFiles: diffSnapshots(before, after, opts.docsDir),
-    permissionDenials: meta.permissionDenials,
-    log: [
-      `$ ${opts.cliPath} --print <prompt> --output-format json --restricted ` +
-      `--permission-mode acceptEdits --permission-prompts none --add-dir ` +
-      `${opts.repoPath} --allowedTools ${AUTHOR_ALLOWED_TOOLS.join(" ")}` +
-      `${opts.model === null ? "" : ` --model ${opts.model}`}`,
-      `# exit=${result.code} timedOut=${result.timedOut} durationMs=${durationMs}`,
-      "",
-      "--- stdout ---",
-      result.stdout,
-      "--- stderr ---",
-      result.stderr,
-    ].join("\n"),
+    cliPath,
+    args,
+    display: [
+      cliPath,
+      "--print <prompt> --output-format json --restricted",
+      "--permission-mode acceptEdits --permission-prompts none",
+      `--add-dir ${opts.repoPath}`,
+      `--allowedTools ${AUTHOR_ALLOWED_TOOLS.join(" ")}`,
+      opts.model === null ? "" : `--model ${opts.model}`,
+    ].filter((part) => part !== "").join(" "),
   };
 }
 
-interface AgentMeta {
+export interface AgentMeta {
   readonly model: string | null;
   readonly sessionId: string | null;
   readonly costUsd: number | null;
@@ -138,16 +199,28 @@ interface AgentMeta {
   readonly permissionDenials: number;
 }
 
-/** Parse the agent CLI's `--output-format json` envelope, tolerantly. */
-export function parseAgentJson(stdout: string): AgentMeta {
-  const empty: AgentMeta = {
-    model: null,
-    sessionId: null,
-    costUsd: null,
-    numTurns: null,
-    summary: null,
-    permissionDenials: 0,
-  };
+const EMPTY_AGENT_META: AgentMeta = {
+  model: null,
+  sessionId: null,
+  costUsd: null,
+  numTurns: null,
+  summary: null,
+  permissionDenials: 0,
+};
+
+/** Parse provider output without leaking its wire format into the model. */
+export function parseAgentOutput(
+  provider: AuthorProvider,
+  stdout: string,
+): AgentMeta {
+  return provider === "codex"
+    ? parseCodexAgentJsonl(stdout)
+    : parseClaudeAgentJson(stdout);
+}
+
+/** Parse Claude's `--output-format json` envelope, tolerantly. */
+export function parseClaudeAgentJson(stdout: string): AgentMeta {
+  const empty = { ...EMPTY_AGENT_META };
 
   const trimmed = stdout.trim();
   if (trimmed === "" || !trimmed.startsWith("{")) return empty;
@@ -175,6 +248,55 @@ export function parseAgentJson(stdout: string): AgentMeta {
     permissionDenials: Array.isArray(parsed.permission_denials)
       ? parsed.permission_denials.length
       : 0,
+  };
+}
+
+/** Backwards-compatible name for callers that consumed the Claude parser. */
+export const parseAgentJson = parseClaudeAgentJson;
+
+/** Parse the JSONL event stream emitted by `codex exec --json`. */
+export function parseCodexAgentJsonl(stdout: string): AgentMeta {
+  let sessionId: string | null = null;
+  let summary: string | null = null;
+  let numTurns = 0;
+
+  for (const line of stdout.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed === "" || !trimmed.startsWith("{")) continue;
+
+    let event: Record<string, unknown>;
+    try {
+      event = JSON.parse(trimmed) as Record<string, unknown>;
+    } catch {
+      continue;
+    }
+
+    if (
+      event.type === "thread.started" && typeof event.thread_id === "string"
+    ) {
+      sessionId = event.thread_id;
+    }
+    if (event.type === "turn.completed" || event.type === "turn.failed") {
+      numTurns += 1;
+    }
+    if (event.type === "item.completed") {
+      const item = event.item;
+      if (typeof item === "object" && item !== null) {
+        const record = item as Record<string, unknown>;
+        if (
+          record.type === "agent_message" && typeof record.text === "string"
+        ) {
+          summary = record.text;
+        }
+      }
+    }
+  }
+
+  return {
+    ...EMPTY_AGENT_META,
+    sessionId,
+    summary,
+    numTurns: numTurns === 0 ? null : numTurns,
   };
 }
 

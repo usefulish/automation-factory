@@ -120,7 +120,7 @@ async function assertAgentCliAvailable(cliPath: string): Promise<void> {
       `The authoring agent CLI "${cliPath}" is not usable: ${
         error instanceof Error ? error.message : String(error)
       }. Install it and make sure it is on PATH and signed in, or set the ` +
-        `agentCliPath global argument to its full path.`,
+        `cliPath method argument (or agentCliPath global argument) to its full path.`,
     );
   }
 }
@@ -155,7 +155,7 @@ async function requirePlan(ctx: Ctx, slug: string): Promise<DocsPlan> {
 /** Mintlify documentation model — inspect, plan, author, configure, validate. */
 export const model = {
   type: "@usefulish/mintlify",
-  version: "2026.09.20.1",
+  version: "2026.09.20.2",
 
   globalArguments: GlobalArgsSchema,
 
@@ -294,7 +294,7 @@ export const model = {
 
     author: {
       description:
-        "Write the planned documentation pages using a locally installed coding agent, scoped to the checkout with no command-execution tools",
+        "Write the planned documentation pages using a supported locally installed coding-agent provider",
       arguments: AuthorArgsSchema,
       execute: async (
         args: z.infer<typeof AuthorArgsSchema>,
@@ -310,7 +310,11 @@ export const model = {
         const profile = await requireProfile(ctx, slug);
         const plan = await requirePlan(ctx, slug);
 
-        await assertAgentCliAvailable(ctx.globalArgs.agentCliPath);
+        const provider = args.provider ?? ctx.globalArgs.agentProvider;
+        const cliPath = optional(args.cliPath) ??
+          optional(ctx.globalArgs.agentCliPath) ?? provider;
+
+        await assertAgentCliAvailable(cliPath);
 
         const prompt = buildAuthorPrompt({
           profile,
@@ -320,11 +324,12 @@ export const model = {
         });
 
         ctx.logger.info(
-          "Authoring {pages} page(s) for {repo} with {cli}",
+          "Authoring {pages} page(s) for {repo} with {provider} ({cli})",
           {
             pages: plan.pageCount,
             repo: plan.repo ?? slug,
-            cli: ctx.globalArgs.agentCliPath,
+            provider,
+            cli: cliPath,
           },
         );
 
@@ -332,7 +337,8 @@ export const model = {
           repoPath,
           docsDir: plan.docsDir,
           prompt,
-          cliPath: ctx.globalArgs.agentCliPath,
+          provider,
+          cliPath,
           model: optional(args.model) ?? ctx.globalArgs.agentModel ?? null,
           timeoutMs: args.timeoutMs ?? ctx.globalArgs.agentTimeoutMs,
           signal: ctx.signal,

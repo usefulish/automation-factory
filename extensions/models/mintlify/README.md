@@ -19,9 +19,9 @@ argument, so one model definition can serve many repositories.
 swamp extension pull @usefulish/mintlify
 ```
 
-Requires `git` and a coding-agent CLI (Claude Code by default) installed and
-signed in on the host. No API key is needed when the CLI is already
-authenticated.
+Requires `git` and a supported coding-agent CLI (Claude Code by default, or
+Codex) installed and signed in on the host. No API key is needed when the CLI
+is already authenticated.
 
 ## Model type: `@usefulish/mintlify`
 
@@ -56,25 +56,31 @@ swamp model method run docs-factory validate --input repoPath=/path/to/checkout
 | `primaryColor`        | `#0D9373`                        | Primary brand colour.                                     |
 | `lightColor`          | `#07C983`                        | Primary colour in dark mode.                              |
 | `darkColor`           | `#0D9373`                        | Primary colour in light mode.                             |
-| `agentCliPath`        | `claude`                         | Coding-agent CLI used for authoring.                      |
+| `agentProvider`       | `claude`                         | Authoring provider: `claude` or `codex`.                  |
+| `agentCliPath`        | provider executable              | Optional CLI path/name override.                          |
 | `agentModel`          | CLI default                      | Model the authoring agent should use.                     |
 | `agentTimeoutMs`      | `1800000`                        | Wall-clock timeout for one authoring run.                 |
 | `schemaUrl`           | `https://mintlify.com/docs.json` | Published Mintlify config schema.                         |
 | `schemaCacheTtlHours` | `24`                             | How long a fetched schema stays fresh.                    |
 
-## How the agent is sandboxed
+The `author` method also accepts per-run `provider` and `cliPath` arguments.
+These take precedence over the global settings, which lets one workflow model
+serve runs from different providers without persisting provider-specific state.
 
-`author` shells out to the agent CLI with the narrowest permissions that still
-let it write documentation:
+## Provider boundary and sandboxing
 
-- `--restricted` removes the command-execution tools (Bash, PowerShell, REPL).
-- `--allowedTools Read Glob Grep Write Edit TodoWrite` — no command execution,
-  no network tools.
-- `--add-dir <checkout>` with the process working directory set to the checkout,
-  so the agent's filesystem reach is the repository it is documenting.
-- `--permission-prompts none` — nothing unlisted is silently granted.
-- The permission-bypass flag is **never** used, so host-managed settings that
-  disable bypass mode stay effective.
+`author` owns the common prompt, file-change detection, result resource, and
+run log. A provider adapter owns only the executable arguments and output
+parsing:
+
+- **Claude** keeps the original restricted contract: `--restricted`, an
+  explicit `Read Glob Grep Write Edit TodoWrite` allowlist, `--add-dir
+  <checkout>`, and `--permission-prompts none`. Permission bypass is never
+  used.
+- **Codex** runs through `codex exec --sandbox workspace-write --ephemeral
+  --json`. Its working directory is the disposable repository checkout, and
+  the JSONL event stream is normalized into the same author-run resource used
+  for Claude.
 
 The prompt forbids writing `docs.json`, touching source outside the docs
 directory, inventing behaviour, and emitting placeholder text. Validation then

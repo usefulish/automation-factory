@@ -1,6 +1,6 @@
 manifestVersion: 1
 name: "@usefulish/mintlify"
-version: "2026.09.20.1"
+version: "2026.09.20.2"
 description: "Turn any repository checkout into a validated Mintlify documentation site — inspect, plan, author with a locally installed coding agent, reconcile docs.json, and gate on the published Mintlify schema."
 
 repository: https://github.com/usefulish/documentation-factory

@@ -1,0 +1,229 @@
+id: 07e169be-ef6e-405a-b62a-8714788d38c5
+name: mintlify-docs
+description: >-
+  Generate a validated Mintlify documentation site for a GitHub repository.
+  Checks the repository out into a disposable workspace, profiles it, plans a
+  page set, writes the pages with a locally installed coding agent, reconciles
+  docs.json against what landed on disk, and gates on Mintlify's published
+  schema plus link, frontmatter, and reachability checks. Nothing is committed
+  or pushed — the run leaves the workspace checkout staged and ready to commit.
+tags:
+  domain: documentation
+
+inputs:
+  properties:
+    repo:
+      type: string
+      description: Repository as owner/name, e.g. usefulish/mac-dependency-safety
+    host:
+      type: string
+      default: github.com
+      description: Git host, for GitHub Enterprise or another forge
+    ref:
+      type: string
+      default: ""
+      description: Branch or tag to document (default branch when empty)
+    workspace:
+      type: string
+      default: .swamp/documentation-factory/workspaces
+      description: Root directory holding per-repository checkouts
+    docsDir:
+      type: string
+      default: docs
+      description: Documentation directory inside the target repository
+    docsBranch:
+      type: string
+      default: docs/mintlify
+      description: Branch created in the workspace checkout to hold the docs
+    theme:
+      type: string
+      default: mint
+      enum: [mint, maple, palm, willow, linden, almond, aspen, luma, sequoia]
+      description: Mintlify theme for a newly created docs.json
+    siteName:
+      type: string
+      default: ""
+      description: Documentation site name (repository name when empty)
+    agentModel:
+      type: string
+      default: ""
+      description: Model for the authoring agent (CLI default when empty)
+    instructions:
+      type: string
+      default: ""
+      description: Extra authoring guidance appended to the generated brief
+    reset:
+      type: boolean
+      default: true
+      description: >-
+        Reset an existing workspace checkout to the remote ref before
+        documenting, discarding anything left there by a previous run. Turn off
+        to iterate on top of a previous run's output.
+    depth:
+      type: integer
+      default: 1
+      description: Clone depth; 0 clones full history
+    strict:
+      type: boolean
+      default: true
+      description: Treat orphan pages and missing descriptions as errors
+    overwrite:
+      type: boolean
+      default: false
+      description: Rewrite existing documentation pages instead of preserving them
+  required: [repo]
+
+jobs:
+  - name: checkout
+    description: Put a clean checkout of the target repository in the workspace
+    dependsOn: []
+    weight: 0
+    steps:
+      - name: ensure-checkout
+        description: Clone the repository, or reset an existing workspace checkout to the remote ref
+        dependsOn: []
+        weight: 0
+        allowFailure: false
+        task:
+          type: model_method
+          modelType: "@swamp/git"
+          modelName: docs-checkout
+          methodName: ensure_checkout
+          globalArgs:
+            repoPath: "."
+          inputs:
+            url: ${{ "https://" + inputs.host + "/" + inputs.repo + ".git" }}
+            path: ${{ inputs.workspace + "/" + inputs.repo.split("/")[0] + "/" + inputs.repo.split("/")[1] }}
+            ref: ${{ inputs.ref }}
+            depth: ${{ inputs.depth }}
+            reset: ${{ inputs.reset }}
+            branch: ${{ inputs.docsBranch }}
+
+
+  - name: document
+    description: Profile the repository, plan the pages, write them, and build the config
+    dependsOn:
+      - job: checkout
+        condition:
+          type: succeeded
+    weight: 0
+    steps:
+      - name: inspect
+        description: Profile the checkout — languages, manifests, entrypoints, markdown outline, existing docs
+        dependsOn: []
+        weight: 0
+        allowFailure: false
+        task:
+          type: model_method
+          modelType: "@usefulish/mintlify"
+          modelName: mintlify-docs
+          methodName: inspect
+          globalArgs:
+            docsDir: ${{ inputs.docsDir }}
+          inputs:
+            repoPath: ${{ inputs.workspace + "/" + inputs.repo.split("/")[0] + "/" + inputs.repo.split("/")[1] }}
+
+      - name: plan
+        description: Derive the documentation page set and per-page authoring briefs
+        dependsOn:
+          - step: inspect
+            condition:
+              type: succeeded
+        weight: 0
+        allowFailure: false
+        task:
+          type: model_method
+          modelType: "@usefulish/mintlify"
+          modelName: mintlify-docs
+          methodName: plan
+          globalArgs:
+            docsDir: ${{ inputs.docsDir }}
+          inputs:
+            repoPath: ${{ inputs.workspace + "/" + inputs.repo.split("/")[0] + "/" + inputs.repo.split("/")[1] }}
+            siteName: ${{ inputs.siteName }}
+            theme: ${{ inputs.theme }}
+
+      - name: author
+        description: Write the planned pages with a locally installed coding agent
+        dependsOn:
+          - step: plan
+            condition:
+              type: succeeded
+        weight: 0
+        allowFailure: false
+        task:
+          type: model_method
+          modelType: "@usefulish/mintlify"
+          modelName: mintlify-docs
+          methodName: author
+          globalArgs:
+            docsDir: ${{ inputs.docsDir }}
+          inputs:
+            repoPath: ${{ inputs.workspace + "/" + inputs.repo.split("/")[0] + "/" + inputs.repo.split("/")[1] }}
+            instructions: ${{ inputs.instructions }}
+            model: ${{ inputs.agentModel }}
+            overwrite: ${{ inputs.overwrite }}
+
+      - name: ensure-config
+        description: Create or update docs.json, regenerating navigation from the pages on disk
+        dependsOn:
+          - step: author
+            condition:
+              type: succeeded
+        weight: 0
+        allowFailure: false
+        task:
+          type: model_method
+          modelType: "@usefulish/mintlify"
+          modelName: mintlify-docs
+          methodName: ensureConfig
+          globalArgs:
+            docsDir: ${{ inputs.docsDir }}
+          inputs:
+            repoPath: ${{ inputs.workspace + "/" + inputs.repo.split("/")[0] + "/" + inputs.repo.split("/")[1] }}
+            force: false
+            dryRun: false
+
+  - name: verify
+    description: Gate on documentation quality and report what is ready to commit
+    dependsOn:
+      - job: document
+        condition:
+          type: succeeded
+    weight: 0
+    steps:
+      - name: validate
+        description: Validate docs.json against Mintlify's schema and check links, frontmatter, and reachability
+        dependsOn: []
+        weight: 0
+        allowFailure: false
+        task:
+          type: model_method
+          modelType: "@usefulish/mintlify"
+          modelName: mintlify-docs
+          methodName: validate
+          globalArgs:
+            docsDir: ${{ inputs.docsDir }}
+          inputs:
+            repoPath: ${{ inputs.workspace + "/" + inputs.repo.split("/")[0] + "/" + inputs.repo.split("/")[1] }}
+            strict: ${{ inputs.strict }}
+            failOnError: true
+            offline: false
+
+      - name: ready-to-commit
+        description: Show the documentation changes staged in the workspace checkout
+        dependsOn:
+          - step: validate
+            condition:
+              type: completed
+        weight: 0
+        allowFailure: true
+        task:
+          type: model_method
+          modelType: "@swamp/git"
+          modelName: docs-checkout-status
+          globalArgs:
+            repoPath: ${{ inputs.workspace + "/" + inputs.repo.split("/")[0] + "/" + inputs.repo.split("/")[1] }}
+          methodName: status
+
+version: 1

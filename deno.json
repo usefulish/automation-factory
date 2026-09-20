@@ -1,0 +1,23 @@
+{
+  "nodeModulesDir": "auto",
+  "fmt": {
+    "lineWidth": 80,
+    "exclude": [
+      "extensions/models/mintlify/docs-schema.json"
+    ]
+  },
+  "lint": {
+    "exclude": [
+      ".swamp/"
+    ],
+    "rules": {
+      "exclude": [
+        "no-import-prefix"
+      ]
+    }
+  },
+  "exclude": [
+    ".swamp/",
+    "node_modules/"
+  ]
+}

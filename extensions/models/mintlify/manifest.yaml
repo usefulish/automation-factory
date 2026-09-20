@@ -1,0 +1,31 @@
+manifestVersion: 1
+name: "@usefulish/mintlify"
+version: "2026.09.20.1"
+description: "Turn any repository checkout into a validated Mintlify documentation site — inspect, plan, author with a locally installed coding agent, reconcile docs.json, and gate on the published Mintlify schema."
+
+repository: https://github.com/usefulish/documentation-factory
+
+# Keeps the manifest, source, vendored schema, README, and LICENSE together in
+# one self-contained directory instead of spreading them across the repo.
+paths:
+  base: manifest
+
+models:
+  - mintlify.ts
+  # Adds an idempotent `ensure_checkout` method to the official git type.
+  - git_checkout.ts
+
+reports:
+  - mintlify_docs.ts
+
+additionalFiles:
+  - README.md
+  - LICENSE.txt
+  # Offline fallback for the published Mintlify config schema. `validate`
+  # prefers the live schema and caches it; this copy keeps validation working
+  # with no network rather than silently skipping schema conformance.
+  - docs-schema.json
+
+# No platform-specific code — the only host requirement is git and a coding
+# agent CLI on PATH.
+platforms: []

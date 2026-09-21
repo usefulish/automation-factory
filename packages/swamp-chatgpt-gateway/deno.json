@@ -1,0 +1,11 @@
+{
+  "tasks": {
+    "serve": "deno run --allow-net --allow-env --allow-read main.ts",
+    "check": "deno check main.ts",
+    "fmt": "deno fmt main.ts",
+    "lint": "deno lint main.ts"
+  },
+  "fmt": {
+    "exclude": ["openapi.json"]
+  }
+}

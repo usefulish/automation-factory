@@ -1,0 +1,227 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Swamp ChatGPT Gateway",
+    "version": "0.1.0",
+    "description": "REST/OpenAPI adapter in front of a Swamp `serve` WebSocket endpoint. Enumerates and runs access-approved Swamp workflows for a ChatGPT GPT Action. Authentication is delegated to Swamp: the caller presents a Swamp server token (`<name>.<secret>`) as a Bearer token, and Swamp's grant model scopes which workflows are readable/runnable. The gateway holds no credentials of its own.",
+    "contact": {
+      "name": "automation-factory",
+      "url": "https://swamp-club.com/lab"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://your-gateway.example.com",
+      "description": "Replace with the URL where swamp-chatgpt-gateway is deployed"
+    }
+  ],
+  "security": [
+    { "bearerAuth": [] }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "A Swamp server token of the form `<name>.<secret>`. Obtain one with `swamp access token` and scope it with `swamp access grant`. The gateway forwards this token to Swamp; grant scoping determines which workflows are visible and runnable."
+      }
+    }
+  },
+  "paths": {
+    "/v1/workflows": {
+      "get": {
+        "summary": "List approved workflows",
+        "operationId": "listWorkflows",
+        "description": "Enumerates workflows the caller's token is authorized to `read`. Swamp filters the result server-side by the token's principal grants, so only access-approved workflows are returned.",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": false,
+            "description": "Optional substring filter forwarded to Swamp's workflow search.",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Approved workflows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "workflows": {
+                      "type": "array",
+                      "items": { "type": "object", "additionalProperties": true }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "502": { "$ref": "#/components/responses/UpstreamError" }
+        }
+      }
+    },
+    "/v1/workflows/{name}/runs": {
+      "post": {
+        "summary": "Run an approved workflow",
+        "operationId": "runWorkflow",
+        "description": "Runs a workflow the caller's token is authorized to `run`. The gateway waits for the run to complete and returns the streamed events. The run is synchronous with respect to the HTTP request.",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "Workflow id or name (e.g. `@usefulish/mintlify-docs`).",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "inputs": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Workflow inputs, passed straight through to Swamp."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Run completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runId": { "type": "string" },
+                    "status": { "type": "string", "example": "completed" },
+                    "result": { "type": "object", "nullable": true, "additionalProperties": true },
+                    "events": {
+                      "type": "array",
+                      "items": { "type": "object", "additionalProperties": true }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "502": { "$ref": "#/components/responses/UpstreamError" }
+        }
+      }
+    },
+    "/v1/runs/{id}": {
+      "get": {
+        "summary": "Get a past run",
+        "operationId": "getRun",
+        "description": "Retrieves a previously executed run by id via Swamp's run search, scoped by the caller's `read` grants.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Run id returned by a previous run.",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching runs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runId": { "type": "string" },
+                    "runs": {
+                      "type": "array",
+                      "items": { "type": "object", "additionalProperties": true }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "502": { "$ref": "#/components/responses/UpstreamError" }
+        }
+      }
+    },
+    "/healthz": {
+      "get": {
+        "summary": "Health check",
+        "operationId": "health",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Gateway is up",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "ok" },
+                    "upstream": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "responses": {
+      "Unauthorized": {
+        "description": "Missing or malformed bearer token",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "UpstreamError": {
+        "description": "Error returned by the upstream Swamp serve",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "string" },
+                    "message": { "type": "string" },
+                    "details": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

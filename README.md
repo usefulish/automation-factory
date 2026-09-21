@@ -43,6 +43,7 @@ This is a swamp monorepo: each automation lives in its own folder under
 | ---------------------------- | ----------------------------------------------------------------- |
 | `packages/mintlify/`         | The `@usefulish/mintlify` model type and its docs workflow.       |
 | `packages/promo-model-checker/` | Daily audit of WorkBuddy's promotional model lineup.          |
+| `packages/swamp-chatgpt-gateway/` | REST/OpenAPI adapter in front of `swamp serve` for ChatGPT GPT Actions (enumerates/runs access-approved workflows). |
 | `workflows/`                 | Swamp workflow definitions (flat — swamp discovers them here).   |
 | `extensions/models/`         | Upstream extension sources (`upstream_extensions.json`).         |
 

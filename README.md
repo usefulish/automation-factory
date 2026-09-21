@@ -1,4 +1,4 @@
-# documentation-factory
+# automation-factory
 
 A reusable [swamp](https://github.com/swamp-club/swamp) automation that takes a
 GitHub repository and leaves behind a validated Mintlify documentation site,

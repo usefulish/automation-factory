@@ -3,7 +3,7 @@ name: "@usefulish/mintlify"
 version: "2026.09.20.2"
 description: "Turn any repository checkout into a validated Mintlify documentation site — inspect, plan, author with a locally installed coding agent, reconcile docs.json, and gate on the published Mintlify schema."
 
-repository: https://github.com/usefulish/documentation-factory
+repository: https://github.com/usefulish/automation-factory
 
 # Keeps the manifest, source, vendored schema, README, and LICENSE together in
 # one self-contained directory instead of spreading them across the repo.

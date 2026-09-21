@@ -23,8 +23,8 @@ jobs:
           modelIdOrName: shell-runner
           methodName: execute
           inputs:
-            run: "/Users/guru/.workbuddy-ai/binaries/python/versions/3.13.12/bin/python3 /Users/guru/Code/labs/documentation-factory/packages/promo-model-checker/promo-model-check.py"
-            workingDir: /Users/guru/Code/labs/documentation-factory
+            run: "/Users/guru/.workbuddy-ai/binaries/python/versions/3.13.12/bin/python3 /Users/guru/Code/labs/automation-factory/packages/promo-model-checker/promo-model-check.py"
+            workingDir: /Users/guru/Code/labs/automation-factory
             timeout: 60000
             ignoreExitCode: false
         dependsOn: []

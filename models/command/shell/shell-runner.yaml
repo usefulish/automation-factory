@@ -1,0 +1,8 @@
+type: command/shell
+typeVersion: 2026.02.09.1
+id: 4cdb12b4-e2ae-4b4e-8da3-cd8bebd6bc24
+name: shell-runner
+version: 1
+tags: {}
+globalArguments: {}
+methods: {}

@@ -5,6 +5,9 @@
 
 # Local extension sources (developer-specific, not shared)
 .swamp-sources.yaml
+
+# Workbuddy instructions (managed by swamp)
+.workbuddy-ai/swamp-instructions.md
 # END swamp managed section
 
 # Deno tooling (extension deps are bundled by swamp, not lockfile-tracked)

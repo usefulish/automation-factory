@@ -3,7 +3,7 @@
   "fmt": {
     "lineWidth": 80,
     "exclude": [
-      "extensions/models/mintlify/docs-schema.json"
+      "packages/mintlify/docs-schema.json"
     ]
   },
   "lint": {

@@ -34,6 +34,22 @@ than left unreachable.
 The checkout is left on a `docs/mintlify` branch with the changes uncommitted —
 nothing is committed or pushed for you.
 
+## Repository layout
+
+This is a swamp monorepo: each automation lives in its own folder under
+`packages/`, while swamp's registry files stay at the repo root.
+
+| Path                         | What it is                                                        |
+| ---------------------------- | ----------------------------------------------------------------- |
+| `packages/mintlify/`         | The `@usefulish/mintlify` model type and its docs workflow.       |
+| `packages/promo-model-checker/` | Daily audit of WorkBuddy's promotional model lineup.          |
+| `workflows/`                 | Swamp workflow definitions (flat — swamp discovers them here).   |
+| `extensions/models/`         | Upstream extension sources (`upstream_extensions.json`).         |
+
+`modelsDir` is set to `packages` in `.swamp.yaml`, so swamp discovers each
+`packages/<name>/` folder that contains a model definition. Workflows are kept
+flat at the repo root because swamp's workflow discovery is non-recursive.
+
 ## How it is built
 
 | Piece                                   | What it is                                           |
@@ -43,8 +59,8 @@ nothing is committed or pushed for you.
 | `@swamp/git` + `ensure_checkout`        | Official git model, extended with an idempotent checkout. |
 | `@usefulish/mintlify-summary`              | Report rendering findings, cost, and navigation.     |
 
-The extension lives in `extensions/models/mintlify/` and has its own
-[README](extensions/models/mintlify/README.md) covering methods, global
+The extension lives in `packages/mintlify/` and has its own
+[README](packages/mintlify/README.md) covering methods, global
 arguments, the agent sandbox, and every validation rule.
 
 The split is deliberate: **everything except the prose is deterministic**.
@@ -143,13 +159,13 @@ in [CLAUDE.md](CLAUDE.md).
 
 ```sh
 # Type-check, format, lint, and score the extension
-~/.swamp/deno/deno check extensions/models/mintlify/**/*.ts
-swamp extension fmt extensions/models/mintlify/manifest.yaml
-swamp extension quality extensions/models/mintlify/manifest.yaml --json
+~/.swamp/deno/deno check packages/mintlify/**/*.ts
+swamp extension fmt packages/mintlify/manifest.yaml
+swamp extension quality packages/mintlify/manifest.yaml --json
 
 # Unit tests (no network, no agent invocation)
 ~/.swamp/deno/deno test --allow-read --allow-write --allow-run --allow-env \
-  extensions/models/mintlify/mintlify_test.ts
+  packages/mintlify/mintlify_test.ts
 
 # Workflow identifier canonicalization (runs `swamp workflow evaluate`)
 ~/.swamp/deno/deno test --allow-read --allow-write --allow-run --allow-env \

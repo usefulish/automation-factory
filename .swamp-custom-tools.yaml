@@ -1,0 +1,17 @@
+tools:
+  - name: workbuddy
+    skillsDir: /Users/guru/.workbuddy-ai/skills
+    instructionsFile: .workbuddy-ai/swamp-instructions.md
+    instructionsMode: shared
+    skillReferenceStyle: path
+    gitignoreEntries: |-
+      # Workbuddy instructions (managed by swamp)
+      .workbuddy-ai/swamp-instructions.md
+  - name: codebuddy
+    skillsDir: .codebuddy/skills
+    instructionsFile: .codebuddy/swamp-instructions.md
+    instructionsMode: shared
+    skillReferenceStyle: path
+    gitignoreEntries: |-
+      # CodeBuddy instructions (managed by swamp)
+      .codebuddy/swamp-instructions.md

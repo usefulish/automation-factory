@@ -1,0 +1,35 @@
+id: 5e99e0a4-fe8f-4df3-92ea-8fadb38f91fc
+name: promo-model-checker
+description: >
+  Daily audit of WorkBuddy's promotional/free model lineup. Reads the local
+  storage product config, extracts modelPromotions, compares against the
+  previous snapshot, and outputs a diff report. Updates the snapshot for
+  the next run.
+tags:
+  category: audit
+  scope: workbuddy
+  frequency: daily
+trigger:
+  schedule: "0 9 * * *"
+  inputs: {}
+jobs:
+  - name: audit
+    description: Extract current promo models, compare with previous snapshot, generate report
+    steps:
+      - name: run-promo-check
+        description: Execute the promo model check Python script
+        task:
+          type: model_method
+          modelIdOrName: shell-runner
+          methodName: execute
+          inputs:
+            run: "/Users/guru/.workbuddy-ai/binaries/python/versions/3.13.12/bin/python3 /Users/guru/Code/labs/documentation-factory/packages/promo-model-checker/promo-model-check.py"
+            workingDir: /Users/guru/Code/labs/documentation-factory
+            timeout: 60000
+            ignoreExitCode: false
+        dependsOn: []
+        weight: 0
+        allowFailure: false
+    dependsOn: []
+    weight: 0
+version: 1

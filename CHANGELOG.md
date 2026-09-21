@@ -29,7 +29,7 @@ All notable changes to this repository are documented here.
   verify. Nothing is committed or pushed; the run leaves the workspace checkout
   on a `docs/mintlify` branch with the changes ready to commit.
 
-- **`@usefulish/mintlify` model type** (`extensions/models/mintlify/`) with five
+- **`@usefulish/mintlify` model type** (`packages/mintlify/`) with five
   methods:
   - `inspect` — deterministic repository profile: identity, languages, package
     manifests, executable entrypoints, markdown outline, CI, existing docs.

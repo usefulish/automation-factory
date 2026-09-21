@@ -1,6 +1,6 @@
 tools:
   - name: workbuddy
-    skillsDir: /Users/guru/.workbuddy-ai/skills
+    skillsDir: .workbuddy-ai/skills
     instructionsFile: .workbuddy-ai/swamp-instructions.md
     instructionsMode: shared
     skillReferenceStyle: path

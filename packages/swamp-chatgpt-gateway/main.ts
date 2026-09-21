@@ -3,8 +3,9 @@
 // A thin REST/OpenAPI adapter that lets a ChatGPT GPT Action enumerate and run
 // access-approved Swamp workflows without speaking Swamp's native WebSocket
 // protocol. Each request opens a short-lived WebSocket to `swamp serve`,
-// forwards the caller's bearer token as the `bearer.<token>` subprotocol, and
-// translates the streamed `event`/`done`/`error` frames back into JSON.
+// forwards the caller's bearer token as the `?token=` query parameter (not the
+// `bearer.<token>` subprotocol — see `callSwamp`), and translates the streamed
+// `event`/`done`/`error` frames back into JSON.
 //
 // Access control is delegated entirely to Swamp: the gateway holds no
 // credentials of its own. The bearer token presented by the GPT Action IS the
@@ -35,8 +36,15 @@ interface SwampCallResult {
 
 /**
  * Opens a WebSocket to `swamp serve`, authenticating with the caller's token
- * via the `bearer.<token>` subprotocol, sends one request frame, and collects
- * the streamed response until a terminal `done` or `error` frame arrives.
+ * via the `?token=` query parameter, sends one request frame, and collects the
+ * streamed response until a terminal `done` or `error` frame arrives.
+ *
+ * The token is passed as a query parameter rather than the `bearer.<token>`
+ * WebSocket subprotocol: Swamp server tokens are `<name>.<secret>` and the
+ * secret can contain characters (`+`, `/`, `=`, ...) outside the RFC 6455
+ * subprotocol character range, which makes some WebSocket clients (e.g. Deno)
+ * reject the handshake with "Invalid protocol value". The query parameter
+ * sidesteps that entirely.
  */
 function callSwamp(
   token: string,
@@ -50,7 +58,9 @@ function callSwamp(
 
     let ws: WebSocket;
     try {
-      ws = new WebSocket(SWAMP_SERVE_URL, [`bearer.${token}`]);
+      const u = new URL(SWAMP_SERVE_URL);
+      u.searchParams.set("token", token);
+      ws = new WebSocket(u.toString());
     } catch (err) {
       result.error = {
         code: "gateway_upstream_unreachable",

@@ -170,6 +170,17 @@ number of repositories. To fan out across an account, add a `forEach` step over
 a list of repositories rather than calling the workflow in a loop — see rule 6
 in [CLAUDE.md](CLAUDE.md).
 
+## Deploying the ChatGPT gateway
+
+`packages/swamp-chatgpt-gateway/` is wired to a real `swamp serve` on this
+machine and exposed to a ChatGPT GPT Action via Tailscale Funnel. The
+copy-paste runbook (launchd plists, Funnel enable, token/grant lifecycle, health
+checks, logs, restart) lives in [`deploy/README.md`](deploy/README.md); the
+canonical operational reference is the Knowfleet card
+**`automation-factory-chatgpt-gateway`**. Start from the package README's
+[Deploying behind ChatGPT](packages/swamp-chatgpt-gateway/README.md#deploying-behind-chatgpt)
+section for the trust-boundary summary.
+
 ## Development
 
 ```sh

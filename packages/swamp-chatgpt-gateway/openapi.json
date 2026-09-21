@@ -11,8 +11,8 @@
   },
   "servers": [
     {
-      "url": "https://your-gateway.example.com",
-      "description": "Replace with the URL where swamp-chatgpt-gateway is deployed"
+      "url": "https://kimchi.oryx-herring.ts.net",
+      "description": "Tailscale Funnel public ingress for swamp-chatgpt-gateway on kimchi (see deploy/README.md)"
     }
   ],
   "security": [

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.guru.automation-factory-swamp-serve</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/guru/.local/bin/swamp</string>
+    <string>serve</string>
+    <string>--auth-mode</string>
+    <string>token</string>
+    <string>--admins</string>
+    <string>user:admin</string>
+    <string>--port</string>
+    <string>9090</string>
+    <string>--host</string>
+    <string>127.0.0.1</string>
+    <string>--no-schedule</string>
+    <string>--repo-dir</string>
+    <string>/Users/guru/Code/labs/automation-factory</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/guru/Code/labs/automation-factory</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>/Users/guru</string>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>StandardOutPath</key>
+  <string>/Users/guru/Library/Logs/automation-factory-swamp-serve.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/guru/Library/Logs/automation-factory-swamp-serve.log</string>
+</dict>
+</plist>

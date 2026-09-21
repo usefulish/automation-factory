@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.guru.automation-factory-chatgpt-gateway</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/deno</string>
+    <string>run</string>
+    <string>--allow-net</string>
+    <string>--allow-env</string>
+    <string>--allow-read</string>
+    <string>/Users/guru/Code/labs/automation-factory/packages/swamp-chatgpt-gateway/main.ts</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/guru/Code/labs/automation-factory</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>/Users/guru</string>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>SWAMP_SERVE_URL</key>
+    <string>ws://127.0.0.1:9090</string>
+    <key>PORT</key>
+    <string>8787</string>
+    <key>REQUEST_TIMEOUT_MS</key>
+    <string>120000</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>StandardOutPath</key>
+  <string>/Users/guru/Library/Logs/automation-factory-chatgpt-gateway.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/guru/Library/Logs/automation-factory-chatgpt-gateway.log</string>
+</dict>
+</plist>

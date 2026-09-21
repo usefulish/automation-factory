@@ -1,8 +1,22 @@
 # automation-factory
 
-A reusable [swamp](https://github.com/swamp-club/swamp) automation that takes a
-GitHub repository and leaves behind a validated Mintlify documentation site,
-ready to commit.
+A [swamp](https://github.com/swamp-club/swamp) **monorepo** of reusable
+automations. Each automation lives in its own `packages/<name>/` folder (see
+[Repository layout](#repository-layout)); swamp discovers them from the repo
+root.
+
+It currently ships three automations:
+
+- **`@usefulish/mintlify-docs`** — takes a GitHub repository and leaves behind a
+  validated Mintlify documentation site, ready to commit.
+- **`promo-model-checker`** — daily audit of WorkBuddy's promotional/free model
+  lineup, comparing against the previous snapshot.
+- **`swamp-chatgpt-gateway`** — a REST/OpenAPI adapter in front of `swamp serve`
+  so a ChatGPT GPT Action can enumerate and run access-approved workflows.
+
+## Quick start: Mintlify docs
+
+The flagship automation generates documentation for any repository:
 
 ```sh
 swamp workflow run @usefulish/mintlify-docs --input repo=owner/name
@@ -12,7 +26,7 @@ That one command checks the repository out into a disposable workspace, profiles
 it, plans a page set, writes the pages with a locally installed coding agent,
 generates `docs.json`, and refuses to finish if the result does not validate.
 
-## What it produces
+## What the Mintlify automation produces
 
 For `usefulish/mac-dependency-safety` — a shell-script repository with no
 package manifest — a single run produced 15 pages across four navigation groups,
@@ -51,7 +65,7 @@ This is a swamp monorepo: each automation lives in its own folder under
 `packages/<name>/` folder that contains a model definition. Workflows are kept
 flat at the repo root because swamp's workflow discovery is non-recursive.
 
-## How it is built
+## How the Mintlify automation is built
 
 | Piece                                   | What it is                                           |
 | --------------------------------------- | ---------------------------------------------------- |

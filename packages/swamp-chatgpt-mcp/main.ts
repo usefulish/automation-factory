@@ -2,8 +2,10 @@
 //
 // A thin MCP stdio server that exposes Swamp workflow operations to ChatGPT over
 // the EXISTING authenticated MCP/Connector tunnel (knowfleet-chatgpt-tunnel),
-// avoiding any public REST ingress. It is registered as a second
-// `mcp.commands` channel ("swamp") alongside the knowfleet server.
+// avoiding any public REST ingress. It is mounted as the "swamp" backend of the
+// knowfleet MCP aggregator (src/mcp-aggregator.js) on the tunnel's `main`
+// channel, namespaced as `swamp__*`. (A ChatGPT plugin surfaces only `main`; a
+// second tunnel channel would not be surfaced as tools — see knowledge a291b337.)
 //
 // Trust model: the adapter authenticates to `swamp serve` as a FIXED local
 // `user:chatgpt` principal (token read from a local file). Swamp's grant model

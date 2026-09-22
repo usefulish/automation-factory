@@ -6,6 +6,33 @@ All notable changes to this repository are documented here.
 
 ### Added
 
+- **`audit-ledger` workflow + `@usefulish/audit-ledger` model** — one
+  deterministic pass over the knowfleet audit ledger and investigation
+  dispatch (knowfleet task #453), replacing the hand-wrangled poll scripts'
+  orchestration while leaving the cron polls in place. A pass surveys the
+  ledger, opens or adopts exactly one run, makes sure it is being worked,
+  completes it when every target carries a verdict, and opens investigations
+  for the machine-revisable ones. Kept as versioned data (`lastPass`, 90
+  versions) with a summary report; a failed, stalled, or needs-human pass
+  escalates to ntfy `/alerts` with checked delivery, and every non-dry pass
+  writes a heartbeat for knowfleet's layer-1 checker. Scheduled by the
+  launchd job `com.guru.audit-ledger` (14:10 daily, ten minutes after the
+  librarian's run creator), not a workflow trigger, because this repo's
+  `swamp serve` runs `--no-schedule` (decision 38108534).
+
+  Three guards are structural. A run already `running` is **adopted, never
+  duplicated**, for any running run rather than only the daily ones (lesson
+  14583002). While the auditor cron `883029b254e4` or investigator cron
+  `63133383b02c` is enabled it **owns** that half of the loop, so the
+  workflow will not dispatch a second worker onto a run it owns — a run that
+  stops progressing for three cron ticks escalates as a stall instead. And
+  the model has **no verdict-writing path at all**: classification belongs to
+  the dispatched auditor profile, per the audit-loop contract. Pausing the
+  crons hands the loop over with no config change here. Sol pacing is
+  enforced in the planner at 2 reconciliation batches per UTC day. Passes
+  against an injected ledger cannot touch the production alert topic or
+  heartbeat (the knowfleet #400/#412 guard).
+
 - **`a2a-conformance` workflow + `@usefulish/a2a-conformance` model** — daily
   A2A v1.0 conformance gate for the kimchi A2A peers (knowfleet task #426),
   wrapping a2a-edge's `scripts/conformance.mjs` (#353). Strict by default:

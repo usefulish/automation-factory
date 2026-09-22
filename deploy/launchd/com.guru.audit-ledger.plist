@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  knowfleet audit-ledger pass (knowfleet task #453) — runs the swamp
+  workflow audit-ledger with NO inputs, i.e. its defaults: orchestrate
+  only (never dispatch a second auditor), open a run when none is in
+  flight, open investigations for machine-revisable verdicts, escalate a
+  failed / stalled / needs-human pass to ntfy /alerts.
+
+  Why launchd and not the workflow's trigger.schedule: this repo's swamp
+  serve (com.guru.automation-factory-swamp-serve) runs with its no-schedule
+  flag and is not necessarily loaded, so a cron trigger would silently
+  never fire. Same reasoning as com.guru.a2a-conformance (decision
+  38108534).
+
+  Why 14:10 local: the librarian's daily candidate-audit cron
+  (6baadbef2952) fires at 14:00 local and creates that day's run. Landing
+  ten minutes later means this pass finds the day's run already open and
+  adopts it, rather than racing the cron to create one.
+
+  Why no RunAtLoad: a pass can open a reconciliation batch, which spends
+  gpt-5.6-sol turns via the auditor poll; a login/boot should not spend
+  them. Pacing is capped at 2 batches/UTC-day inside the model.
+
+  Coexistence: the auditor cron 883029b254e4 and investigator cron
+  63133383b02c keep authoring verdicts and remediating. While they are
+  enabled this workflow will NOT dispatch a second worker onto a run they
+  own. Pause them and the workflow takes the loop over — no config change
+  here is needed.
+
+  Liveness: every non-dry pass writes
+  ~/Scripts/network-status/machines/kimchi/heartbeats/audit-ledger.heartbeat,
+  watched by knowfleet's layer-1 heartbeat checker
+  (scripts/heartbeat-watch.config). ntfy is escalation only.
+
+  Install: copy to ~/Library/LaunchAgents (so it survives logout/reboot), then
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.guru.audit-ledger.plist
+  Run now:  launchctl kickstart gui/$(id -u)/com.guru.audit-ledger
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.guru.audit-ledger</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/guru/.local/bin/swamp</string>
+    <string>workflow</string>
+    <string>run</string>
+    <string>audit-ledger</string>
+    <string>--repo-dir</string>
+    <string>/Users/guru/Code/labs/automation-factory</string>
+    <string>--no-color</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/guru/Code/labs/automation-factory</string>
+  <!-- 14:10 local (America/New_York). A missed slot while asleep fires on wake. -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>14</integer>
+    <key>Minute</key>
+    <integer>10</integer>
+  </dict>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>/Users/guru</string>
+    <!-- launchd PATH lacks Homebrew; the model also pins node by absolute path. -->
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/Users/guru/Library/Logs/audit-ledger.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/guru/Library/Logs/audit-ledger.log</string>
+</dict>
+</plist>

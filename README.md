@@ -13,6 +13,10 @@ It currently ships four automations:
   lineup, comparing against the previous snapshot.
 - **`a2a-conformance`** — daily A2A v1.0 conformance gate for the fleet's A2A
   peers, with ntfy escalation and a liveness heartbeat.
+- **`audit-ledger`** — one deterministic pass over the knowfleet audit ledger:
+  opens or adopts a single audit run, sees it worked and completed, and opens
+  investigations for machine-revisable verdicts — never double-driving a run
+  the cron polls already own, and never stamping a verdict itself.
 - **`swamp-chatgpt-gateway`** — a REST/OpenAPI adapter in front of `swamp serve`
   so a ChatGPT GPT Action can enumerate and run access-approved workflows.
 
@@ -60,6 +64,7 @@ This is a swamp monorepo: each automation lives in its own folder under
 | `packages/mintlify/`         | The `@usefulish/mintlify` model type and its docs workflow.       |
 | `packages/promo-model-checker/` | Daily audit of WorkBuddy's promotional model lineup.          |
 | `packages/a2a-conformance/` | Daily A2A conformance gate — `@usefulish/a2a-conformance` model, report, launchd schedule. |
+| `packages/audit-ledger/` | knowfleet audit-ledger + investigation pass — `@usefulish/audit-ledger` model, report, launchd schedule. |
 | `packages/swamp-chatgpt-gateway/` | REST/OpenAPI adapter in front of `swamp serve` for ChatGPT GPT Actions (enumerates/runs access-approved workflows). |
 | `workflows/`                 | Swamp workflow definitions (flat — swamp discovers them here).   |
 | `extensions/models/`         | Upstream extension sources (`upstream_extensions.json`).         |

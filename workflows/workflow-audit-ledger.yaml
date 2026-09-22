@@ -1,0 +1,123 @@
+id: 8f3c1d24-5b7a-4e91-9c6f-2a0d4e8b71c3
+name: audit-ledger
+description: >-
+  knowfleet audit ledger + investigation pass (task #453). Surveys the
+  ledger, opens or adopts exactly ONE audit run, ensures it is being
+  worked, completes it when every target has a verdict, and opens
+  investigations for the machine-revisable ones — keeping the pass as
+  versioned data on the audit-ledger model and escalating a failed,
+  stalled, or needs-human pass to ntfy /alerts.
+
+  Two runs are never driven at once: a run already `running` is adopted
+  rather than duplicated (lesson 14583002 — ANY running run, not just the
+  daily ones), and while the auditor cron 883029b254e4 is active it owns
+  verdict authorship, so this workflow will not dispatch a second worker
+  onto the same run. Pause that cron and the workflow takes the loop over.
+
+  Sol pacing is honoured: at most 2 #450 reconciliation batches per UTC
+  day, plus the daily candidate audit.
+
+  Scheduled by the launchd job com.guru.audit-ledger, NOT by a
+  trigger.schedule: this repo's swamp serve runs with --no-schedule.
+tags:
+  category: audit
+  scope: knowfleet
+  frequency: daily
+inputs:
+  properties:
+    dispatch:
+      type: boolean
+      default: false
+      description: >-
+        Dispatch the auditor profile to author verdicts. Default false: the
+        auditor cron owns authorship today and this pass only orchestrates.
+        Even when true, a run the cron owns is left alone unless it has
+        stalled.
+    open:
+      type: boolean
+      default: true
+      description: Allow opening a new run when none is in flight.
+    allowDaily:
+      type: boolean
+      default: true
+      description: Allow opening the daily candidate audit.
+    allowBatch:
+      type: boolean
+      default: true
+      description: Allow opening the next #450 reconciliation batch.
+    investigate:
+      type: boolean
+      default: true
+      description: >-
+        Open investigations for machine-revisable verdicts that lack one.
+    maxInvestigations:
+      type: number
+      default: 5
+      description: >-
+        Cap investigations opened per pass so a backlog does not flood the
+        investigator pool.
+    dryRun:
+      type: boolean
+      default: false
+      description: >-
+        Plan and report without writing to the ledger. A dry run never
+        writes the heartbeat, so a spot check cannot vouch for the
+        scheduled job.
+    alertUrl:
+      type: string
+      default: https://ntfy.oryx-herring.ts.net/alerts
+      description: >-
+        ntfy topic for failures, stalls, and needs-human verdicts; empty
+        disables alerting. Point tests at a scratch topic — the model
+        refuses the production topic for injected-ledger passes.
+jobs:
+  - name: audit
+    description: Run one audit/investigation pass and gate on its outcome
+    steps:
+      - name: run-pass
+        description: >-
+          Survey, plan, open or adopt a run, ensure it is worked, complete
+          it, and open investigations
+        task:
+          type: model_method
+          modelType: "@usefulish/audit-ledger"
+          modelName: audit-ledger
+          methodName: pass
+          inputs:
+            dispatch: ${{ inputs.dispatch }}
+            open: ${{ inputs.open }}
+            allowDaily: ${{ inputs.allowDaily }}
+            allowBatch: ${{ inputs.allowBatch }}
+            investigate: ${{ inputs.investigate }}
+            maxInvestigations: ${{ inputs.maxInvestigations }}
+            dryRun: ${{ inputs.dryRun }}
+            failOnError: true
+        dependsOn: []
+        weight: 0
+        allowFailure: false
+    dependsOn: []
+    weight: 0
+  - name: escalate
+    description: >-
+      Alert on a failed, stalled, or needs-human pass. Runs whether the
+      pass passed or failed — a green pass that found needs-human verdicts
+      still needs a human — and stays silent when there is nothing to say.
+    dependsOn:
+      - job: audit
+        condition:
+          type: completed
+    steps:
+      - name: notify
+        description: POST the pass outcome to ntfy when it warrants attention
+        task:
+          type: model_method
+          modelType: "@usefulish/audit-ledger"
+          modelName: audit-ledger
+          methodName: notify
+          inputs:
+            url: ${{ inputs.alertUrl }}
+        dependsOn: []
+        weight: 0
+        allowFailure: false
+    weight: 0
+version: 1

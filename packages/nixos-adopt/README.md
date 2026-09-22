@@ -106,6 +106,33 @@ deno test --allow-read --allow-write --allow-env --allow-run \
 bash ~/Code/nix-config/scripts/adopt-nixos.test.sh
 ```
 
+## Transport note: Tailscale SSH re-auth (check mode)
+
+The default transport is `{kind: tailscale, user: root}`. Tailscale SSH is
+effectively passwordless, but a tailnet ACL may put a session in **check mode**
+— an occasional browser re-auth
+(`Tailscale SSH requires an
+additional check. To authenticate, visit https://login.tailscale.com/...`).
+That prompt cannot be satisfied by an unattended workflow run: the step will
+stall until someone approves the URL, then proceed.
+
+For fully unattended adoption, prefer a key-based OpenSSH transport to a host
+whose ACL does not force interactive re-auth:
+
+```bash
+swamp workflow run nixos-adopt --input host=bao \
+  --input 'transport:json={"kind":"ssh","user":"guru","identityFile":"~/.ssh/id_ed25519"}' \
+  --input address=bao.oryx-herring.ts.net
+```
+
+(This is why `transport` is a workflow input rather than hardcoded.) Two
+unrelated gotchas seen from a sandboxed operator agent, neither a Tailscale
+fault: a process denied read access to `~/.ssh` cannot do OpenSSH key auth or
+known_hosts at all; and a peer showing `-` in `tailscale status` is online with
+no live path yet (paths are built lazily on first traffic), so a cold first-hit
+probe with a short timeout can miss before the path establishes — retry, or
+pre-warm with `tailscale ping`.
+
 ## Requirements
 
 - `@swamp/ssh` extension (`swamp extension pull @swamp/ssh`).

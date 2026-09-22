@@ -1,0 +1,465 @@
+id: 69cfcef3-9815-4281-a745-6a6ff17ec157
+name: nixos-adopt
+description: >-
+  Adopt an ALREADY-RUNNING NixOS machine into the usefulish fleet by
+  converging it onto the nix-config flake with nixos-rebuild. This is the
+  day-2 adoption path (docs/FLEET-PROVISIONING.md "Day-2" + the "Bao
+  specifically" adoption), NOT the from-USB installer (scripts/provision-nixos.sh):
+  the target already boots NixOS and the operator already has root over SSH.
+  The workflow never partitions, formats, installs from media, generates
+  hardware config, touches credentials, or enrolls Tailscale — it ships the
+  fleet repo by tarball and runs the established nixos-rebuild mechanism
+  against hosts/<host>/ + modules/nixos-common.nix, phase by phase, failing
+  before any activation when observed state disagrees with expectations.
+  The result is a baseline fleet member; role-specific config is applied
+  afterwards, separately.
+tags:
+  domain: fleet
+  scope: nixos
+
+inputs:
+  properties:
+    host:
+      type: string
+      description: >-
+        nixosConfigurations attribute and hostname (e.g. bao). hosts/<host>/
+        must already exist in the flake with a real hardware-configuration.nix.
+    address:
+      type: string
+      default: ""
+      description: >-
+        SSH/tailnet address of the target. Empty derives <host>.<tailnet>.
+    tailnet:
+      type: string
+      default: oryx-herring.ts.net
+      description: Tailnet MagicDNS suffix used when address is empty.
+    transport:
+      type: object
+      default:
+        kind: tailscale
+        user: root
+      description: >-
+        @swamp/ssh transport. Default is Tailscale SSH as root (the fleet
+        day-2 transport: tailnet identity, no SSH keys). Override for an
+        OpenSSH/key path, e.g. {kind: ssh, user: guru, identityFile: ~/.ssh/id_ed25519}.
+    repoPath:
+      type: string
+      default: /Users/guru/Code/nix-config
+      description: Local checkout of the fleet flake to ship and apply.
+    remoteDir:
+      type: string
+      default: /tmp/nix-config
+      description: Where the repo tarball is unpacked on the target.
+    stagingDir:
+      type: string
+      default: /tmp
+      description: Local dir for the staged tarball + meta file.
+    mode:
+      type: string
+      default: inspect
+      enum: [inspect, apply]
+      description: >-
+        inspect (default, safe): discover + build + read-only accept, never
+        activates. apply: gate on approval, then nixos-rebuild switch/test.
+    applyMode:
+      type: string
+      default: switch
+      enum: [switch, test]
+      description: >-
+        In apply mode: switch (default, makes it the boot default) or test
+        (activate without touching the bootloader — prove activation first).
+    reboot:
+      type: boolean
+      default: false
+      description: >-
+        After a successful apply, reboot the host and wait for it to come
+        back before acceptance. Handles the temporary disconnect explicitly.
+    reconnectTries:
+      type: integer
+      default: 60
+      description: Reconnect poll attempts after reboot (5s apart).
+    receiptsDir:
+      type: string
+      default: .swamp/nixos-adopt/receipts
+      description: Local directory for the JSON + Markdown receipts.
+  required: [host]
+
+jobs:
+  - name: adopt
+    description: discover → plan → (approve → apply → reboot/reconnect) → accept → receipt
+    dependsOn: []
+    weight: 0
+    steps:
+      # --- prepare (local): capture flake revision + stage the tarball ----
+      - name: prepare
+        description: Record the flake revision/cleanliness and stage the repo tarball.
+        dependsOn: []
+        weight: 0
+        allowFailure: false
+        task:
+          type: model_method
+          modelType: command/shell
+          modelName: adopt-prepare
+          methodName: execute
+          inputs:
+            run: >-
+              set -eu; cd "$REPO";
+              REV=$(git rev-parse --short HEAD 2>/dev/null || echo unknown);
+              if [ -n "$(git status --porcelain 2>/dev/null)" ]; then DIRTY=true; else DIRTY=false; fi;
+              printf '{"rev":"%s","dirty":%s}\n' "$REV" "$DIRTY" > "$META";
+              tar --exclude=.git --exclude=result --exclude=.DS_Store -czf "$TARBALL" -C "$REPO" .;
+              echo "staged $TARBALL (rev=$REV dirty=$DIRTY)"
+            env:
+              REPO: ${{ inputs.repoPath }}
+              TARBALL: ${{ inputs.stagingDir + "/nix-config-adopt-" + inputs.host + ".tar.gz" }}
+              META: ${{ inputs.stagingDir + "/nix-config-adopt-" + inputs.host + ".meta.json" }}
+            timeout: 120000
+
+      # --- ship: copy the tarball and unpack it on the target ------------
+      - name: ship-copy
+        description: Copy the staged tarball to the target.
+        dependsOn:
+          - step: prepare
+            condition:
+              type: succeeded
+        weight: 0
+        allowFailure: false
+        task:
+          type: model_method
+          modelType: "@swamp/ssh"
+          modelName: adopt-ship
+          methodName: copy
+          globalArgs:
+            name: adopt
+            transport: ${{ inputs.transport }}
+            hosts:
+              - name: ${{ inputs.host }}
+                address: '${{ inputs.address != "" ? inputs.address : inputs.host + "." + inputs.tailnet }}'
+          inputs:
+            hosts: all
+            src: ${{ inputs.stagingDir + "/nix-config-adopt-" + inputs.host + ".tar.gz" }}
+            dst: ${{ inputs.stagingDir + "/nix-config-adopt-" + inputs.host + ".tar.gz" }}
+            direction: to
+
+      - name: ship-extract
+        description: Unpack the tarball into remoteDir on the target.
+        dependsOn:
+          - step: ship-copy
+            condition:
+              type: succeeded
+        weight: 0
+        allowFailure: false
+        task:
+          type: model_method
+          modelType: "@swamp/ssh"
+          modelName: adopt-ship
+          methodName: exec
+          globalArgs:
+            name: adopt
+            transport: ${{ inputs.transport }}
+            hosts:
+              - name: ${{ inputs.host }}
+                address: '${{ inputs.address != "" ? inputs.address : inputs.host + "." + inputs.tailnet }}'
+          inputs:
+            hosts: all
+            command: >-
+              rm -rf "${{ inputs.remoteDir }}" && mkdir -p "${{ inputs.remoteDir }}"
+              && tar -xzf "${{ inputs.stagingDir + "/nix-config-adopt-" + inputs.host + ".tar.gz" }}"
+              -C "${{ inputs.remoteDir }}"
+              && test -f "${{ inputs.remoteDir }}/scripts/adopt-nixos.sh"
+
+      # --- discover (read-only prerequisite gate) ------------------------
+      - name: discover
+        description: Read-only inspection; captures identity/arch/generation and prereq readiness.
+        dependsOn:
+          - step: ship-extract
+            condition:
+              type: succeeded
+        weight: 0
+        allowFailure: false
+        task:
+          type: model_method
+          modelType: "@swamp/ssh"
+          modelName: adopt-discover
+          methodName: exec
+          globalArgs:
+            name: adopt
+            transport: ${{ inputs.transport }}
+            hosts:
+              - name: ${{ inputs.host }}
+                address: '${{ inputs.address != "" ? inputs.address : inputs.host + "." + inputs.tailnet }}'
+          inputs:
+            hosts: all
+            command: >-
+              bash "${{ inputs.remoteDir }}/scripts/adopt-nixos.sh" discover
+              "${{ inputs.host }}" --flake "${{ inputs.remoteDir }}#${{ inputs.host }}"
+            okExitCodes: [0, 1]
+
+      - name: assert-ready
+        description: Fail before any change if the host is not ready to adopt.
+        dependsOn:
+          - step: discover
+            condition:
+              type: succeeded
+        weight: 0
+        allowFailure: false
+        task:
+          type: assert
+          expr: >-
+            data.latest("adopt-discover", "run-exec-" + inputs.host).attributes.stdout.contains("\"ready\":true")
+          message: >-
+            Host ${{ inputs.host }} is not ready for adoption (not wired into the
+            flake, placeholder hardware config, or not a NixOS host). See the
+            discover output. Nothing was changed.
+          severity: high
+
+      # --- plan: build the target closure, no activation -----------------
+      - name: plan
+        description: Build the target system closure without activating it; reports drift.
+        dependsOn:
+          - step: assert-ready
+            condition:
+              type: succeeded
+        weight: 0
+        allowFailure: false
+        task:
+          type: model_method
+          modelType: "@swamp/ssh"
+          modelName: adopt-plan
+          methodName: exec
+          globalArgs:
+            name: adopt
+            transport: ${{ inputs.transport }}
+            hosts:
+              - name: ${{ inputs.host }}
+                address: '${{ inputs.address != "" ? inputs.address : inputs.host + "." + inputs.tailnet }}'
+          inputs:
+            hosts: all
+            command: >-
+              bash "${{ inputs.remoteDir }}/scripts/adopt-nixos.sh" plan
+              "${{ inputs.host }}" --flake "${{ inputs.remoteDir }}#${{ inputs.host }}"
+            okExitCodes: [0, 1]
+
+      - name: assert-build
+        description: Fail before apply if the target closure did not build.
+        dependsOn:
+          - step: plan
+            condition:
+              type: succeeded
+        weight: 0
+        allowFailure: false
+        task:
+          type: assert
+          expr: >-
+            data.latest("adopt-plan", "run-exec-" + inputs.host).attributes.stdout.contains("\"buildOk\":true")
+          message: >-
+            Target closure for ${{ inputs.host }} failed to build — refusing to
+            apply. See the plan output for the build error. Nothing was activated.
+          severity: high
+
+      # --- approval gate (apply mode only) -------------------------------
+      - name: approve
+        description: Operator approves activation. Skipped in inspect mode.
+        guard: ${{ inputs.mode == "inspect" }}
+        dependsOn:
+          - step: assert-build
+            condition:
+              type: succeeded
+        weight: 0
+        allowFailure: false
+        task:
+          type: manual_approval
+          prompt: >-
+            Apply the fleet baseline to ${{ inputs.host }} via nixos-rebuild
+            ${{ inputs.applyMode }}? Review the plan output (target toplevel and
+            drift) before approving. This activates configuration on the host.
+          timeout: 86400
+
+      # --- apply: nixos-rebuild switch/test (idempotent) -----------------
+      # Always runs so the receipt always has an apply record; in inspect
+      # mode the driver reports a dry run and activates nothing.
+      - name: apply
+        description: Converge the host onto the flake (idempotent; dry run in inspect mode).
+        writes: true
+        dependsOn:
+          - step: approve
+            condition:
+              type: completed
+        weight: 0
+        allowFailure: false
+        task:
+          type: model_method
+          modelType: "@swamp/ssh"
+          modelName: adopt-apply
+          methodName: exec
+          globalArgs:
+            name: adopt
+            transport: ${{ inputs.transport }}
+            hosts:
+              - name: ${{ inputs.host }}
+                address: '${{ inputs.address != "" ? inputs.address : inputs.host + "." + inputs.tailnet }}'
+          inputs:
+            hosts: all
+            command: >-
+              ADOPT_INSPECT=${{ inputs.mode == "inspect" ? "1" : "0" }}
+              bash "${{ inputs.remoteDir }}/scripts/adopt-nixos.sh" apply
+              "${{ inputs.host }}" --flake "${{ inputs.remoteDir }}#${{ inputs.host }}"
+              --mode ${{ inputs.applyMode }}
+
+      # --- reboot + reconnect (optional, apply mode) ---------------------
+      # Schedules a deferred reboot so the exec returns cleanly before the
+      # link drops, then polls from the operator side until the host answers.
+      - name: reboot-trigger
+        description: Optionally schedule a deferred reboot on the target.
+        writes: true
+        dependsOn:
+          - step: apply
+            condition:
+              type: succeeded
+        weight: 0
+        allowFailure: false
+        task:
+          type: model_method
+          modelType: "@swamp/ssh"
+          modelName: adopt-reboot
+          methodName: exec
+          globalArgs:
+            name: adopt
+            transport: ${{ inputs.transport }}
+            hosts:
+              - name: ${{ inputs.host }}
+                address: '${{ inputs.address != "" ? inputs.address : inputs.host + "." + inputs.tailnet }}'
+          inputs:
+            hosts: all
+            command: >-
+              if [ "$DO" = "true" ]; then
+              systemd-run --on-active=3 systemctl reboot >/dev/null 2>&1 || (sleep 3; systemctl reboot >/dev/null 2>&1 &);
+              echo "reboot-scheduled"; else echo "reboot-not-requested"; fi
+            env:
+              DO: '${{ inputs.reboot && inputs.mode != "inspect" ? "true" : "false" }}'
+            okExitCodes: [0, 1, 255]
+
+      - name: reconnect
+        description: Wait for the host to come back after reboot (operator-side poll).
+        dependsOn:
+          - step: reboot-trigger
+            condition:
+              type: succeeded
+        weight: 0
+        allowFailure: false
+        task:
+          type: model_method
+          modelType: command/shell
+          modelName: adopt-reconnect
+          methodName: execute
+          inputs:
+            run: >-
+              set -u;
+              if [ "$DO" != "true" ]; then echo "reconnect-not-requested"; exit 0; fi;
+              echo "waiting for $USER@$ADDR to come back...";
+              i=0; while [ "$i" -lt "$TRIES" ]; do
+              i=$((i+1));
+              if ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new "$USER@$ADDR" true 2>/dev/null; then
+              echo "reconnected after $((i*5))s"; exit 0; fi;
+              sleep 5; done;
+              echo "reconnect-timeout after $((TRIES*5))s"; exit 1
+            env:
+              DO: '${{ inputs.reboot && inputs.mode != "inspect" ? "true" : "false" }}'
+              USER: '${{ has(inputs.transport.user) ? inputs.transport.user : "root" }}'
+              ADDR: '${{ inputs.address != "" ? inputs.address : inputs.host + "." + inputs.tailnet }}'
+              TRIES: ${{ string(inputs.reconnectTries) }}
+            timeout: 600000
+
+      # --- accept (read-only baseline verification) ----------------------
+      - name: accept
+        description: Verify the fleet baseline invariants on the running system.
+        dependsOn:
+          - step: apply
+            condition:
+              type: succeeded
+          - step: reconnect
+            condition:
+              type: completed
+        weight: 0
+        allowFailure: false
+        task:
+          type: model_method
+          modelType: "@swamp/ssh"
+          modelName: adopt-accept
+          methodName: exec
+          globalArgs:
+            name: adopt
+            transport: ${{ inputs.transport }}
+            hosts:
+              - name: ${{ inputs.host }}
+                address: '${{ inputs.address != "" ? inputs.address : inputs.host + "." + inputs.tailnet }}'
+          inputs:
+            hosts: all
+            command: >-
+              bash "${{ inputs.remoteDir }}/scripts/adopt-nixos.sh" accept
+              "${{ inputs.host }}" --flake "${{ inputs.remoteDir }}#${{ inputs.host }}"
+            okExitCodes: [0, 1]
+
+      - name: assert-accept
+        description: Fail the run if the baseline is not satisfied (apply mode only).
+        guard: ${{ inputs.mode == "inspect" }}
+        dependsOn:
+          - step: accept
+            condition:
+              type: succeeded
+        weight: 0
+        allowFailure: false
+        task:
+          type: assert
+          expr: >-
+            data.latest("adopt-accept", "run-exec-" + inputs.host).attributes.stdout.contains("\"allPass\":true")
+          message: >-
+            ${{ inputs.host }} did not satisfy the fleet baseline after apply —
+            see the accept checks in the receipt.
+          severity: high
+
+      # --- receipt (always runs; the audit artifact) ---------------------
+      - name: receipt
+        description: Assemble the structured adoption receipt (JSON + Markdown).
+        dependsOn:
+          - step: discover
+            condition:
+              type: always
+          - step: plan
+            condition:
+              type: always
+          - step: apply
+            condition:
+              type: always
+          - step: accept
+            condition:
+              type: always
+        weight: 0
+        allowFailure: false
+        task:
+          type: model_method
+          modelType: command/shell
+          modelName: adopt-receipt
+          methodName: execute
+          inputs:
+            run: >-
+              mkdir -p "$RECEIPTS";
+              deno run --allow-read --allow-write --allow-env
+              "$REPO_AF/packages/nixos-adopt/receipt.ts"
+              --meta "$META"
+              --out "$RECEIPTS/${{ inputs.host }}.json"
+              --md "$RECEIPTS/${{ inputs.host }}.md"
+            env:
+              RECEIPTS: ${{ inputs.receiptsDir }}
+              REPO_AF: /Users/guru/Code/labs/automation-factory
+              META: ${{ inputs.stagingDir + "/nix-config-adopt-" + inputs.host + ".meta.json" }}
+              ADOPT_HOST: ${{ inputs.host }}
+              ADOPT_MODE: ${{ inputs.mode }}
+              ADOPT_REBOOT: '${{ inputs.reboot && inputs.mode != "inspect" ? "true" : "false" }}'
+              ADOPT_DISCOVER: ${{ data.latest("adopt-discover", "run-exec-" + inputs.host).?attributes.?stdout }}
+              ADOPT_PLAN: ${{ data.latest("adopt-plan", "run-exec-" + inputs.host).?attributes.?stdout }}
+              ADOPT_APPLY: ${{ data.latest("adopt-apply", "run-exec-" + inputs.host).?attributes.?stdout }}
+              ADOPT_ACCEPT: ${{ data.latest("adopt-accept", "run-exec-" + inputs.host).?attributes.?stdout }}
+              ADOPT_REBOOT_RESULT: ${{ data.latest("adopt-reconnect", "result").?attributes.?stdout }}
+            timeout: 120000
+version: 1

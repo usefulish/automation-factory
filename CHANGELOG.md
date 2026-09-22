@@ -6,6 +6,18 @@ All notable changes to this repository are documented here.
 
 ### Added
 
+- **`a2a-conformance` workflow + `@usefulish/a2a-conformance` model** — daily
+  A2A v1.0 conformance gate for the kimchi A2A peers (knowfleet task #426),
+  wrapping a2a-edge's `scripts/conformance.mjs` (#353). Strict by default:
+  every target, edges and reference peers, gates the run. Each verdict is
+  kept as versioned data (`lastRun`, 90 versions) with a summary report. A
+  failed or crashed run escalates to ntfy `/alerts` with checked delivery.
+  Full runs write a heartbeat for knowfleet's layer-1 checker. Scheduled by
+  the launchd job `com.guru.a2a-conformance` (06:30 daily), not a workflow
+  trigger, because this repo's `swamp serve` runs `--no-schedule`. Runs with
+  an injected suite cannot touch the production alert topic or heartbeat
+  (the knowfleet #400/#412 guard).
+
 - **Provider-neutral documentation authoring** — the fuzzy `author` method now
   supports both Claude Code and Codex behind provider adapters. Claude keeps
   its existing restricted CLI flags; Codex uses non-interactive

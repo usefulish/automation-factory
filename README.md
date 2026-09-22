@@ -5,12 +5,14 @@ automations. Each automation lives in its own `packages/<name>/` folder (see
 [Repository layout](#repository-layout)); swamp discovers them from the repo
 root.
 
-It currently ships three automations:
+It currently ships four automations:
 
 - **`@usefulish/mintlify-docs`** — takes a GitHub repository and leaves behind a
   validated Mintlify documentation site, ready to commit.
 - **`promo-model-checker`** — daily audit of WorkBuddy's promotional/free model
   lineup, comparing against the previous snapshot.
+- **`a2a-conformance`** — daily A2A v1.0 conformance gate for the fleet's A2A
+  peers, with ntfy escalation and a liveness heartbeat.
 - **`swamp-chatgpt-gateway`** — a REST/OpenAPI adapter in front of `swamp serve`
   so a ChatGPT GPT Action can enumerate and run access-approved workflows.
 
@@ -57,6 +59,7 @@ This is a swamp monorepo: each automation lives in its own folder under
 | ---------------------------- | ----------------------------------------------------------------- |
 | `packages/mintlify/`         | The `@usefulish/mintlify` model type and its docs workflow.       |
 | `packages/promo-model-checker/` | Daily audit of WorkBuddy's promotional model lineup.          |
+| `packages/a2a-conformance/` | Daily A2A conformance gate — `@usefulish/a2a-conformance` model, report, launchd schedule. |
 | `packages/swamp-chatgpt-gateway/` | REST/OpenAPI adapter in front of `swamp serve` for ChatGPT GPT Actions (enumerates/runs access-approved workflows). |
 | `workflows/`                 | Swamp workflow definitions (flat — swamp discovers them here).   |
 | `extensions/models/`         | Upstream extension sources (`upstream_extensions.json`).         |

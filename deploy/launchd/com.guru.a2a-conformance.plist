@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Daily A2A conformance gate (knowfleet task #426) — runs the swamp workflow
+  a2a-conformance with NO inputs, i.e. its defaults: strict (every target
+  gates), all targets, failures escalated to ntfy /alerts.
+
+  Why launchd and not the workflow's trigger.schedule: this repo's swamp serve
+  (com.guru.automation-factory-swamp-serve) runs with its no-schedule flag and is not
+  necessarily loaded, so a cron trigger would silently never fire.
+
+  Why no RunAtLoad: every run dispatches live turns to the codex, claude and
+  codebuddy subscription edges; a login/boot should not spend them. Post-boot
+  health is a2a-edge's scripts/check-edges.sh.
+
+  Liveness: the run writes
+  ~/Scripts/network-status/machines/kimchi/heartbeats/a2a-conformance.heartbeat,
+  watched by knowfleet's layer-1 heartbeat checker (scripts/heartbeat-watch.config).
+
+  Install: copy to ~/Library/LaunchAgents (so it survives logout/reboot), then
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.guru.a2a-conformance.plist
+  Run now:  launchctl kickstart gui/$(id -u)/com.guru.a2a-conformance
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.guru.a2a-conformance</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/guru/.local/bin/swamp</string>
+    <string>workflow</string>
+    <string>run</string>
+    <string>a2a-conformance</string>
+    <string>--repo-dir</string>
+    <string>/Users/guru/Code/labs/automation-factory</string>
+    <string>--no-color</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/guru/Code/labs/automation-factory</string>
+  <!-- 06:30 local (America/New_York). A missed slot while asleep fires on wake. -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>6</integer>
+    <key>Minute</key>
+    <integer>30</integer>
+  </dict>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>/Users/guru</string>
+    <!-- launchd PATH lacks Homebrew; the suite also pins node by absolute path. -->
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/Users/guru/Library/Logs/a2a-conformance.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/guru/Library/Logs/a2a-conformance.log</string>
+</dict>
+</plist>

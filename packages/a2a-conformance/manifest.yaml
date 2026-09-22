@@ -1,0 +1,31 @@
+manifestVersion: 1
+name: "@usefulish/a2a-conformance"
+version: "2026.09.22.1"
+description: "Scheduled A2A v1.0 conformance gate for the fleet's A2A peers — runs the a2a-edge conformance suite (pinned a2a-cli oracle), keeps each verdict as versioned data, escalates failures to ntfy, and writes a heartbeat for the layer-1 checker."
+
+repository: https://github.com/usefulish/automation-factory
+
+paths:
+  base: manifest
+
+models:
+  - a2a_conformance.ts
+
+reports:
+  - a2a_conformance_summary.ts
+
+workflows:
+  - workflow-a2a-conformance.yaml
+
+additionalFiles:
+  - README.md
+
+labels:
+  - a2a
+  - conformance
+  - audit
+  - fleet
+
+# Host-specific by design: the suite targets kimchi's loopback peers and reads
+# the fleet token from the macOS Keychain.
+platforms: []

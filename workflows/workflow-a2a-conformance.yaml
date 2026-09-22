@@ -1,0 +1,84 @@
+id: fcdb873d-ddd9-4701-9fbe-8dc7d64e3106
+name: a2a-conformance
+description: >-
+  A2A v1.0 conformance gate for the fleet's kimchi A2A peers (knowfleet task
+  #426, wrapping the #353 suite). Runs a2a-edge's conformance.mjs — the pinned
+  a2a-cli reference client against the codex/claude/codebuddy edges and the
+  pi/librarian reference peers — keeps the verdict as versioned data on the
+  a2a-conformance model, and escalates a failed or crashed run to ntfy
+  /alerts. Strict (every target gates) by default: scheduled runs exist to
+  catch regressions anywhere on the wire, not just in the edges.
+  Scheduled daily by the launchd job com.guru.a2a-conformance, NOT by a
+  trigger.schedule: this repo's swamp serve runs with --no-schedule.
+tags:
+  category: audit
+  scope: a2a
+  frequency: daily
+inputs:
+  properties:
+    only:
+      type: string
+      default: ""
+      description: >-
+        Comma-separated target-name prefixes (codex, claude, codebuddy, pi,
+        librarian). Empty runs every target. Subset runs never write the
+        heartbeat, so a spot check cannot vouch for the scheduled job.
+    strict:
+      type: boolean
+      default: true
+      description: >-
+        Gate on the reference peers too. false gates on the edges only
+        (reference failures are still reported).
+    skipSlow:
+      type: boolean
+      default: false
+      description: Skip the cancel probe (the slowest one).
+    alertUrl:
+      type: string
+      default: https://ntfy.oryx-herring.ts.net/alerts
+      description: >-
+        ntfy topic for failures; empty disables alerting. Point tests at a
+        scratch topic or local listener — the model refuses the production
+        topic for injected-suite runs.
+jobs:
+  - name: audit
+    description: Run the conformance suite and gate on its verdict
+    steps:
+      - name: run-suite
+        description: Execute conformance.mjs and persist the normalised report
+        task:
+          type: model_method
+          modelType: "@usefulish/a2a-conformance"
+          modelName: a2a-conformance
+          methodName: run
+          inputs:
+            only: ${{ inputs.only }}
+            strict: ${{ inputs.strict }}
+            skipSlow: ${{ inputs.skipSlow }}
+            failOnError: true
+        dependsOn: []
+        weight: 0
+        allowFailure: false
+    dependsOn: []
+    weight: 0
+  - name: escalate
+    description: Alert on a failed or crashed run (success stays silent)
+    dependsOn:
+      - job: audit
+        condition:
+          type: failed
+    steps:
+      - name: notify
+        description: POST the failing targets and first failed probe to ntfy
+        task:
+          type: model_method
+          modelType: "@usefulish/a2a-conformance"
+          modelName: a2a-conformance
+          methodName: notify
+          inputs:
+            url: ${{ inputs.alertUrl }}
+        dependsOn: []
+        weight: 0
+        allowFailure: false
+    weight: 0
+version: 1

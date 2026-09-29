@@ -5,13 +5,15 @@ description: >
   storage product config, extracts modelPromotions, compares against the
   previous snapshot, and outputs a diff report. Updates the snapshot for
   the next run.
+
+  Scheduled by the launchd job com.guru.promo-model-checker (05:00 local),
+  NOT by a trigger.schedule: this repo's swamp serve runs with --no-schedule,
+  so a trigger.schedule would silently never fire. Same convention as
+  com.guru.a2a-conformance and com.guru.audit-ledger.
 tags:
   category: audit
   scope: workbuddy
   frequency: daily
-trigger:
-  schedule: "0 9 * * *"
-  inputs: {}
 jobs:
   - name: audit
     description: Extract current promo models, compare with previous snapshot, generate report

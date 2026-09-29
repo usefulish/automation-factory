@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Daily promo-model-checker pass — runs the swamp workflow
+  promo-model-checker with NO inputs.
+
+  Why launchd and not the workflow's trigger.schedule: this repo's swamp serve
+  (com.guru.automation-factory-swamp-serve) runs with its no-schedule flag, so a
+  cron/trigger.schedule would silently never fire. Same reasoning as
+  com.guru.a2a-conformance (decision 38108534) and com.guru.audit-ledger.
+
+  The workflow's own trigger.schedule "0 9 * * *" is UTC 09:00 = 05:00 local
+  (America/New_York). That schedule field is dead under --no-schedule; this
+  launchd StartCalendarInterval is the real trigger.
+
+  Why no RunAtLoad: a pass spends model turns; a login/boot should not spend them.
+
+  Install: copy to ~/Library/LaunchAgents (so it survives logout/reboot), then
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.guru.promo-model-checker.plist
+  Run now:  launchctl kickstart gui/$(id -u)/com.guru.promo-model-checker
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.guru.promo-model-checker</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/guru/.local/bin/swamp</string>
+    <string>workflow</string>
+    <string>run</string>
+    <string>promo-model-checker</string>
+    <string>--repo-dir</string>
+    <string>/Users/guru/Code/labs/automation-factory</string>
+    <string>--no-color</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/guru/Code/labs/automation-factory</string>
+  <!-- 05:00 local (America/New_York); the workflow's UTC 09:00 schedule. A missed
+       slot while asleep fires on wake. -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>5</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>/Users/guru</string>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/Users/guru/Library/Logs/promo-model-checker.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/guru/Library/Logs/promo-model-checker.log</string>
+</dict>
+</plist>
